@@ -1,0 +1,14 @@
+inteiro principal () {
+    inteiro a;
+    flutuante b;
+    flutuante c;
+    caractere d;
+    booleano resultado;
+
+    a = 10;
+    b = 20.5;
+    c = a + b;
+    d = 'D';
+
+    resultado = (a < b) && !(a == 10);
+}
