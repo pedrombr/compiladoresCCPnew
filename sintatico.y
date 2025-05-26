@@ -26,6 +26,7 @@ map<string, tab> tabelaSimbolos;
 int yylex(void);
 void yyerror(string);
 string gentempcode(string tipo);
+string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
 string conversao(string var, string tipoOrigem, string tipoDest, string &codigo);
 %}
@@ -92,10 +93,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
     };
     
     TIPO
-        : TK_TIPO_INT     { $$.label = "inteiro"; $$.tipoExp = "int";}
-        | TK_TIPO_FLOAT   { $$.label = "flutuante"; $$.tipoExp = "float"; }
-        | TK_TIPO_CHAR    { $$.label = "caractere"; $$.tipoExp = "char"; }
-        | TK_TIPO_BOOLEAN { $$.label = "booleano"; $$.tipoExp = "bool"; };
+        : TK_TIPO_INT     { $$.label = "int"; $$.tipoExp = "int";}
+        | TK_TIPO_FLOAT   { $$.label = "float"; $$.tipoExp = "float"; }
+        | TK_TIPO_CHAR    { $$.label = "char"; $$.tipoExp = "char"; }
+        | TK_TIPO_BOOLEAN { $$.label = "bool"; $$.tipoExp = "bool"; };
     
     E
         : E '+' E {
@@ -154,74 +155,80 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$ = $2;
         }
 		| E '<' E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " < " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E TK_MENOR_IGUAL E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " <= " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E '>' E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " > " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E TK_MAIOR_IGUAL E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " >= " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E TK_IGUAL_IGUAL E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " == " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E TK_DIFERENTE E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " != " + $3.label + ";\n";
-		}
+            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+        }
 		| E TK_AND E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " && " + $3.label + ";\n";
 		}
 		| E TK_OR E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " || " + $3.label + ";\n";
 		}
 		| '!' E {
-            $$.label = gentempcode("booleano");
+            $$.label = gentempcode2("bool");
             $$.traducao = $2.traducao + "\t" + $$.label + " = !" + $2.label + ";\n";
 		}
     	|TK_FLOAT_VAL{
-    		 $$.label = gentempcode("flutuante");
+    		 $$.label = gentempcode("float");
        		 $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
     	}
     
         |TK_CHAR_VAL{
 
-    		 $$.label = gentempcode("caractere");
+    		 $$.label = gentempcode("char");
        		 $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
 
         }
 
         |TK_TRUE{
 
-    		 $$.label = gentempcode("booleano");
+    		 $$.label = gentempcode2("bool");
        		 $$.traducao = "\t" + $$.label + " = 1;\n";
         }
         |TK_FALSE{
 
-    		 $$.label = gentempcode("booleano");
+    		 $$.label = gentempcode2("bool");
        		 $$.traducao = "\t" + $$.label + " = 0;\n";
         }
 
         | TK_ID '=' E {
             
             if (!tabelaSimbolos.count($1.label)) {
-                tabelaSimbolos[$1.label] = { "inteiro", $1.label };
+                tabelaSimbolos[$1.label] = { "int", $1.label };
                  variaveisNome.insert($1.label);
      }   
             string tipoVar = tabelaSimbolos[$1.label].tipo;
             string tipoExpr = tabelaSimbolos[$3.label].tipo;
-            if(tipoVar == "booleano") tipoVar = "inteiro";
-            if(tipoExpr == "booleano") tipoExpr = "inteiro";
+            if(tipoVar == "bool") tipoVar = "int";
+            if(tipoExpr == "bool") tipoExpr = "int";
 
             if (tipoVar != tipoExpr) {
                cout << "Erro: Tipos incompatíveis na atribuição!" << endl;
@@ -229,13 +236,13 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.traducao = $1.traducao + $3.traducao + "\t" + $1.label + " = " + $3.label + ";\n";
         }
         | TK_NUM {
-            $$.label = gentempcode("inteiro");
+            $$.label = gentempcode("int");
             $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
         }
         | TK_ID {
             
              if (!tabelaSimbolos.count($1.label)) {
-                 tabelaSimbolos[$1.label] = {"inteiro", $1.label };
+                 tabelaSimbolos[$1.label] = {"int", $1.label };
                  variaveisNome.insert($1.label);
                  }
 
@@ -264,7 +271,16 @@ int yyparse();
 
 string gentempcode(string tipo) {
     
-    if(tipo == "booleano") tipo = "inteiro";
+    var_temp_qnt++;
+    string nomeTemp = "t" + to_string(var_temp_qnt);
+    variaveisNome.insert(nomeTemp);
+    tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
+    return nomeTemp;
+}
+
+string gentempcode2(string tipo) {
+    
+    if(tipo == "bool") tipo = "int";
     
     var_temp_qnt++;
     string nomeTemp = "t" + to_string(var_temp_qnt);
@@ -274,10 +290,11 @@ string gentempcode(string tipo) {
 }
 
 string tipoResult(string tipo1, string tipo2){
-    if(tipo1 == "flutuante" || tipo2 == "flutuante") return "flutuante";
-    else if(tipo1 == "inteiro" || tipo2 == "inteiro") return "inteiro";
-    else if(tipo1 == "caractere" || tipo2 == "caractere") return "caractere";
-    else return "inteiro";
+    if(tipo1 == "bool" || tipo2 == "bool") yyerror("Erro de sintaxe: Não podemos fazer operação com boolean");
+    else if(tipo1 == "float" || tipo2 == "float") return "float";
+    else if(tipo1 == "int" || tipo2 == "int") return "int";
+    else if(tipo1 == "char" || tipo2 == "char") return "char";
+    else return "int";
 }
 
 string conversao(string var, string tipoOrigem, string tipoDest, string &codigo){
@@ -298,3 +315,4 @@ void yyerror(string MSG) {
     cout << MSG << endl;
     exit(0);
 }
+
