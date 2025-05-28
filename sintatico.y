@@ -59,8 +59,8 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
                         "#define true 1\n"
                         "#define false 0\n"
                         "#include <stdio.h>\n"
-                        "int main(void) {\n";
-// par.first = nome original (ex: a), par.second.palavra = nome na memória (ex: v0)
+                        "int main(void) \n{\n";
+
         for (auto& par : tabelaSimbolos) {
             if (variaveisNome.count(par.second.palavra)) {
                 codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";   --> " + par.first + "\n";
@@ -303,7 +303,7 @@ void adicionarVariavel(string nome, string tipo) {
 string gentempcode(string tipo) {
     while (true) {
         string nomeTemp = "t" + to_string(var_temp_qnt++);
-        if (!mapeamentoVar.count(nomeTemp)) { // não colide com variável do usuário
+        if (!mapeamentoVar.count(nomeTemp)) { 
             variaveisTempNome.insert(nomeTemp);
             tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
             return nomeTemp;
