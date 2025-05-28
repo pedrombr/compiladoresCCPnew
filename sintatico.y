@@ -4,7 +4,6 @@
 #include <sstream>
 #include <set>
 #include <map>
-#include <algorithm>
 
 #define YYSTYPE atributos
 using namespace std;
@@ -87,9 +86,6 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
        		 if (tabelaSimbolos.count($2.label)) {
             	cout << "Erro: Variável '" << $2.label << "' já foi declarada." << endl;
             	exit(1);
-        }
-            if ($2.label[0] == 't' && $2.label.size() > 1 && all_of($2.label.begin() + 1, $2.label.end(), ::isdigit)) {
-                yyerror("Erro: Nomes como '" + $2.label + "' são reservados para variáveis temporárias.");
         }
         	tabelaSimbolos[$2.label] = { $1.label, $2.label };
         	variaveisNome.insert($2.label);
@@ -248,7 +244,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
              if (!tabelaSimbolos.count($1.label)) {
                  tabelaSimbolos[$1.label] = {"int", $1.label };
                  variaveisNome.insert($1.label);
-            }
+                 }
 
             string tipo = tabelaSimbolos[$1.label].tipo;
             $$.label = gentempcode(tipo);
@@ -294,7 +290,7 @@ string gentempcode2(string tipo) {
 }
 
 string tipoResult(string tipo1, string tipo2){
-    if(tipo1 == "bool" || tipo2 == "bool") {
+    if(tipo1 == "bool" || tipo2 == "bool"){
         yyerror("Erro de sintaxe: Não podemos fazer operação com boolean");
         return "";
     }
