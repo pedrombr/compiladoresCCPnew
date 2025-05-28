@@ -205,26 +205,26 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.traducao = $2.traducao + "\t" + $$.label + " = !" + $2.label + ";\n";
 		}
     	|TK_FLOAT_VAL{
-    		 $$.label = gentempcode("float");
-       		 $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+    		$$.label = gentempcode("float");
+       		$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+            $$.tipoExp = "float";
     	}
     
         |TK_CHAR_VAL{
-
-    		 $$.label = gentempcode("char");
-       		 $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
-
+    		$$.label = gentempcode("char");
+       		$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+            $$.tipoExp = "char";
         }
 
         |TK_TRUE{
-
-    		 $$.label = gentempcode2("bool");
-       		 $$.traducao = "\t" + $$.label + " = 1;\n";
+    		$$.label = gentempcode2("bool");
+       		$$.traducao = "\t" + $$.label + " = 1;\n";
+            $$.tipoExp = "bool";
         }
         |TK_FALSE{
-
-    		 $$.label = gentempcode2("bool");
-       		 $$.traducao = "\t" + $$.label + " = 0;\n";
+    		$$.label = gentempcode2("bool");
+       		$$.traducao = "\t" + $$.label + " = 0;\n";
+            $$.tipoExp = "bool";
         }
 
         | TK_ID '=' E {
@@ -248,6 +248,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         | TK_NUM {
             $$.label = gentempcode("int");
             $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+            $$.tipoExp = "int";
         }
         | TK_ID {
             
@@ -258,6 +259,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             string tipo = tabelaSimbolos[$1.label].tipo;
             $$.label = gentempcode(tipo);
             $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+            $$.tipoExp = tipo;
         }
         | '(' TIPO ')' E {
             string tipoOrigem = tabelaSimbolos[$4.label].tipo;
@@ -286,23 +288,26 @@ void adicionarVariavel(string nome, string tipo) {
 }
 
 string gentempcode(string tipo) {
-    
-    var_temp_qnt++;
-    string nomeTemp = "t" + to_string(var_temp_qnt);
-    variaveisTempNome.insert(nomeTemp);
-    tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
-    return nomeTemp;
+    while (true) {
+        string nomeTemp = "t" + to_string(var_temp_qnt++);
+        if (!mapeamentoVar.count(nomeTemp)) { // não colide com variável do usuário
+            variaveisTempNome.insert(nomeTemp);
+            tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
+            return nomeTemp;
+        }
+    }
 }
 
 string gentempcode2(string tipo) {
-    
     if(tipo == "bool") tipo = "int";
-    
-    var_temp_qnt++;
-    string nomeTemp = "t" + to_string(var_temp_qnt);
-    variaveisTempNome.insert(nomeTemp);
-    tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
-    return nomeTemp;
+    while (true) {
+        string nomeTemp = "t" + to_string(var_temp_qnt++);
+        if (!mapeamentoVar.count(nomeTemp)) {
+            variaveisTempNome.insert(nomeTemp);
+            tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
+            return nomeTemp;
+        }
+    }
 }
 
 string tipoResult(string tipo1, string tipo2){
