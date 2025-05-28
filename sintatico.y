@@ -19,12 +19,17 @@ struct tab {
     string palavra;
 };
 
+int var_qnt = 0; 
 int var_temp_qnt = 0;
 set<string> variaveisNome;
+set<string> variaveisTempNome;
 map<string, tab> tabelaSimbolos;
+map<string, string> mapeamentoVar;
+
 
 int yylex(void);
 void yyerror(string);
+void adicionarVariavel(string nome, string tipo);
 string gentempcode(string tipo);
 string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
@@ -55,9 +60,13 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
                         "#define false 0\n"
                         "#include <stdio.h>\n"
                         "int main(void) {\n";
-
+// par.first = nome original (ex: a), par.second.palavra = nome na memória (ex: v0)
         for (auto& par : tabelaSimbolos) {
-            codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";\n"; 
+            if (variaveisNome.count(par.second.palavra)) {
+                codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";   --> " + par.first + "\n";
+            } else {
+                codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";\n";
+            }
         }
 
         codigo += "\n";
@@ -87,8 +96,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             	cout << "Erro: Variável '" << $2.label << "' já foi declarada." << endl;
             	exit(1);
         }
-        	tabelaSimbolos[$2.label] = { $1.label, $2.label };
-        	variaveisNome.insert($2.label);
+        	adicionarVariavel($2.label, $1.label);
         	$$.traducao = ""; 
     };
     
@@ -220,20 +228,22 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         }
 
         | TK_ID '=' E {
+            string nomeVar = $1.label;
             
-            if (!tabelaSimbolos.count($1.label)) {
-                tabelaSimbolos[$1.label] = { "int", $1.label };
-                 variaveisNome.insert($1.label);
-     }   
-            string tipoVar = tabelaSimbolos[$1.label].tipo;
-            string tipoExpr = tabelaSimbolos[$3.label].tipo;
+            if (!tabelaSimbolos.count(nomeVar)) {
+                adicionarVariavel(nomeVar, $3.tipoExp);
+            }
+            string nomeMem = tabelaSimbolos[nomeVar].palavra;
+            string tipoVar = tabelaSimbolos[nomeVar].tipo;
+            string tipoExpr = $3.tipoExp;
+
             if(tipoVar == "bool") tipoVar = "int";
             if(tipoExpr == "bool") tipoExpr = "int";
 
             if (tipoVar != tipoExpr) {
                cout << "Erro: Tipos incompatíveis na atribuição!" << endl;
             }
-            $$.traducao = $1.traducao + $3.traducao + "\t" + $1.label + " = " + $3.label + ";\n";
+            $$.traducao = $1.traducao + $3.traducao + "\t" + nomeMem + " = " + $3.label + ";\n";
         }
         | TK_NUM {
             $$.label = gentempcode("int");
@@ -241,10 +251,9 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         }
         | TK_ID {
             
-             if (!tabelaSimbolos.count($1.label)) {
-                 tabelaSimbolos[$1.label] = {"int", $1.label };
-                 variaveisNome.insert($1.label);
-                 }
+            if (!tabelaSimbolos.count($1.label)) {
+                adicionarVariavel($1.label, "int");
+            }
 
             string tipo = tabelaSimbolos[$1.label].tipo;
             $$.label = gentempcode(tipo);
@@ -269,11 +278,18 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
 int yyparse();
 
+void adicionarVariavel(string nome, string tipo) {
+    string nomeMem = "v" + to_string(var_qnt++);
+    tabelaSimbolos[nome] = { tipo, nomeMem };
+    variaveisNome.insert(nomeMem);
+    mapeamentoVar[nome] = nomeMem;
+}
+
 string gentempcode(string tipo) {
     
     var_temp_qnt++;
     string nomeTemp = "t" + to_string(var_temp_qnt);
-    variaveisNome.insert(nomeTemp);
+    variaveisTempNome.insert(nomeTemp);
     tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
     return nomeTemp;
 }
@@ -284,7 +300,7 @@ string gentempcode2(string tipo) {
     
     var_temp_qnt++;
     string nomeTemp = "t" + to_string(var_temp_qnt);
-    variaveisNome.insert(nomeTemp);
+    variaveisTempNome.insert(nomeTemp);
     tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
     return nomeTemp;
 }
