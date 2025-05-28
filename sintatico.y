@@ -119,6 +119,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
             $$.label = gentempcode(tipoTemp);
             $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " + " + dirConv + ";\n";
+            $$.tipoExp = tipoTemp;
         }
         | E '-' E {
             string tipoEsq = tabelaSimbolos[$1.label].tipo;
@@ -132,6 +133,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
             $$.label = gentempcode(tipoTemp);
             $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " - " + dirConv + ";\n";
+            $$.tipoExp = tipoTemp;
         }
         | E '*' E {
             string tipoEsq = tabelaSimbolos[$1.label].tipo;
@@ -145,6 +147,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
             $$.label = gentempcode(tipoTemp);
             $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " * " + dirConv + ";\n";
+            $$.tipoExp = tipoTemp;
         }
         | E '/' E {
             string tipoEsq = tabelaSimbolos[$1.label].tipo;
@@ -158,6 +161,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
             $$.label = gentempcode(tipoTemp);
             $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " / " + dirConv + ";\n";
+            $$.tipoExp = tipoTemp;
         }
         | '(' E ')' {
             $$ = $2;
@@ -166,43 +170,52 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " < " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E TK_MENOR_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " <= " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E '>' E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " > " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E TK_MAIOR_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " >= " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E TK_IGUAL_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " == " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E TK_DIFERENTE E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " != " + $3.label + ";\n";
             if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            $$.tipoExp = "bool";
         }
 		| E TK_AND E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " && " + $3.label + ";\n";
+            $$.tipoExp = "bool";
 		}
 		| E TK_OR E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " || " + $3.label + ";\n";
+            $$.tipoExp = "bool";
 		}
 		| '!' E {
             $$.label = gentempcode2("bool");
             $$.traducao = $2.traducao + "\t" + $$.label + " = !" + $2.label + ";\n";
+            $$.tipoExp = "bool";
 		}
     	|TK_FLOAT_VAL{
     		$$.label = gentempcode("float");
@@ -255,10 +268,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             if (!tabelaSimbolos.count($1.label)) {
                 adicionarVariavel($1.label, "int");
             }
-
+            string nomeMem = tabelaSimbolos[$1.label].palavra;
             string tipo = tabelaSimbolos[$1.label].tipo;
             $$.label = gentempcode(tipo);
-            $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
+            $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
             $$.tipoExp = tipo;
         }
         | '(' TIPO ')' E {
