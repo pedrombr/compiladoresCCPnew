@@ -16,7 +16,7 @@ struct atributos {
 
 struct tab {
     string tipo;
-    string palavra;
+    string elemento;
 };
 
 int var_qnt = 0; 
@@ -44,6 +44,8 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 %token TK_TRUE TK_FALSE
 %token TK_MENOR_IGUAL TK_MAIOR_IGUAL TK_IGUAL_IGUAL TK_DIFERENTE
 %token TK_AND TK_OR 
+%token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_CASE
+
 
 %start S
 %left '+' '-'
@@ -62,10 +64,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
                         "int main(void) \n{\n";
 
         for (auto& par : tabelaSimbolos) {
-            if (variaveisNome.count(par.second.palavra)) {
-                codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";   --> " + par.first + "\n";
+            if (variaveisNome.count(par.second.elemento)) {
+                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";   --> " + par.first + "\n";
             } else {
-                codigo += "\t" + par.second.tipo + " " + par.second.palavra + ";\n";
+                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";\n";
             }
         }
 
@@ -246,7 +248,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             if (!tabelaSimbolos.count(nomeVar)) {
                 adicionarVariavel(nomeVar, $3.tipoExp);
             }
-            string nomeMem = tabelaSimbolos[nomeVar].palavra;
+            string nomeMem = tabelaSimbolos[nomeVar].elemento;
             string tipoVar = tabelaSimbolos[nomeVar].tipo;
             string tipoExpr = $3.tipoExp;
 
@@ -268,7 +270,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             if (!tabelaSimbolos.count($1.label)) {
                 adicionarVariavel($1.label, "int");
             }
-            string nomeMem = tabelaSimbolos[$1.label].palavra;
+            string nomeMem = tabelaSimbolos[$1.label].elemento;
             string tipo = tabelaSimbolos[$1.label].tipo;
             $$.label = gentempcode(tipo);
             $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
