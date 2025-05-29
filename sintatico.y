@@ -24,7 +24,7 @@ int var_temp_qnt = 0;
 set<string> variaveisNome;
 set<string> variaveisTempNome;
 map<string, tab> tabelaSimbolos;
-map<string, string> mapeamentoVar;
+
 
 
 int yylex(void);
@@ -297,13 +297,13 @@ void adicionarVariavel(string nome, string tipo) {
     string nomeMem = "v" + to_string(var_qnt++);
     tabelaSimbolos[nome] = { tipo, nomeMem };
     variaveisNome.insert(nomeMem);
-    mapeamentoVar[nome] = nomeMem;
+    
 }
 
 string gentempcode(string tipo) {
     while (true) {
         string nomeTemp = "t" + to_string(var_temp_qnt++);
-        if (!mapeamentoVar.count(nomeTemp)) { 
+        if (!tabelaSimbolos.count(nomeTemp)) { 
             variaveisTempNome.insert(nomeTemp);
             tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
             return nomeTemp;
@@ -315,7 +315,7 @@ string gentempcode2(string tipo) {
     if(tipo == "bool") tipo = "int";
     while (true) {
         string nomeTemp = "t" + to_string(var_temp_qnt++);
-        if (!mapeamentoVar.count(nomeTemp)) {
+        if (!tabelaSimbolos.count(nomeTemp)) {
             variaveisTempNome.insert(nomeTemp);
             tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
             return nomeTemp;
