@@ -15,13 +15,23 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "\n"           {}
 {DELIM}        {}
-"principal"         { return TK_MAIN; }
-"inteiro"          { return TK_TIPO_INT; }
-"flutuante"        { return TK_TIPO_FLOAT; }
-"caractere"         { return TK_TIPO_CHAR; }
-"booleano"         { return TK_TIPO_BOOLEAN; }
-"verdadeiro"         { yylval.label = "true"; return TK_TRUE; }
+"principal"    { return TK_MAIN; }
+"inteiro"      { return TK_TIPO_INT; }
+"flutuante"    { return TK_TIPO_FLOAT; }
+"caractere"    { return TK_TIPO_CHAR; }
+"booleano"     { return TK_TIPO_BOOLEAN; }
+"verdadeiro"   { yylval.label = "true"; return TK_TRUE; }
 "falso"        { yylval.label = "false"; return TK_FALSE; }
+"palavra"      { return TK_STRING; }
+"se"           { return TK_IF; }
+"senao"        { return TK_ELSE; }
+"enquanto"     { return TK_WHILE; }
+"fazer"        { return TK_DO; }
+"para"         { return TK_FOR; }
+"escolha"      { return TK_SWITCH; }
+"encerrar"     { return TK_BREAK; }
+"pular"        { return TK_CONTINUE; }
+"caso"         { return TK_CASE; }
 [(){}[\];,]    { return *yytext; }
 [+\-*/]        { return *yytext; }
 "<"            { return '<'; }
