@@ -65,7 +65,7 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
         for (auto& par : tabelaSimbolos) {
             if (variaveisNome.count(par.second.elemento)) {
-                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";   --> " + par.first + "\n";
+                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";   // var " + par.first + "\n";
             } else {
                 codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";\n";
             }
