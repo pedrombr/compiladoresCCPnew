@@ -185,7 +185,20 @@ string gerarotulo();
             $$.traducao += rotulo_fim + ":\n";
         }
         | TK_DO COMANDO TK_WHILE '(' E ')' ';'{
+            if($5.tipoExp != "bool"){
+                yyerror("Erro Semantico: A expressao do DO/WHILE deve ser booleana.");
+            }
+            string rotulo_inicio = gerarotulo();
+            string rotulo_fim = gerarotulo();
+            $$.traducao = rotulo_inicio + ":\n";
+            $$.traducao += $2.traducao;
+            $$.traducao += $5.traducao;
 
+            string tempNeg = gentempcode2("bool");
+            $$.traducao += "\t" + tempNeg + " = !" + $5.label + ";\n";
+            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+            $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
+            $$.traducao += rotulo_fim + ":\n";
         }
         ;
     
