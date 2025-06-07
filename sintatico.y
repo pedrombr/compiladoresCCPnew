@@ -22,6 +22,7 @@ struct tab {
 
 int var_qnt = 0; 
 int var_temp_qnt = 0;
+int rotulos_qnt = 0;
 set<string> variaveisNome;
 set<string> variaveisTempNome;
 stack<map<string, tab>> pilhaDeSimbolos;
@@ -36,6 +37,7 @@ string gentempcode(string tipo);
 string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
 string conversao(string var, string tipoOrigem, string tipoDest, string &codigo);
+string gerarotulo();
 
 %}
 
@@ -115,14 +117,12 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             adicionarVariavel($2.label, $1.label);
             $$.traducao = ""; 
         }
-
         | TIPO TK_ID '=' E ';' {
             adicionarVariavel($2.label, $1.label);
         
             tab infoVar = buscarVariavel($2.label);
             string nomeMem = infoVar.elemento;
             string tipoVar = infoVar.tipo;
-
        
             string tipoExpr = $4.tipoExp;
         
@@ -136,7 +136,32 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         }
         | BLOCO {         
             $$ = $1;   
-        };
+        }
+        | TK_IF '(' E ')' COMANDO {
+            if($3.tipoExp != "bool"){
+                yyerror("Erro Semantico: A expressao do IF deve ser booleana.");
+            }
+            string rotulo_fim = gerarotulo();
+            $$.traducao = $3.traducao;
+            $$.traducao += "\tif (!" + $3.label + ") goto " + rotulo_fim + ";\n"; 
+            $$.traducao += $5.traducao;
+            $$.traducao += rotulo_fim + ":\n"; 
+        }
+        | TK_IF '(' E ')' COMANDO TK_ELSE COMANDO {
+            if($3.tipoExp != "bool") {
+                yyerror("Erro Semantico: A expressao do IF deve ser booleana.");
+            }
+            string rotulo_else = gerarotulo();
+            string rotulo_fim = gerarotulo();
+            $$.traducao = $3.traducao;
+            $$.traducao += "\tif (!" + $3.label + ") goto " + rotulo_else + ";\n";
+            $$.traducao += $5.traducao;
+            $$.traducao += "\tgoto " + rotulo_fim + ";\n";
+            $$.traducao += rotulo_else + ":\n";
+            $$.traducao += $7.traducao;
+            $$.traducao += rotulo_fim + ":\n";
+        }
+        ;
     
     TIPO
         : TK_TIPO_INT     { $$.label = "int"; $$.tipoExp = "int";}
@@ -406,6 +431,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
     string temp = gentempcode(tipoDest);
     codigo += "\t" + temp + " = (" + tipoDest + ") " + var + ";\n";
     return temp;
+}
+
+string gerarotulo(){
+    return "R" + to_string(rotulos_qnt++);
 }
 
 int main(int argc, char* argv[]) {
