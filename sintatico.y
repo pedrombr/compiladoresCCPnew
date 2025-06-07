@@ -4,6 +4,7 @@
 #include <sstream>
 #include <set>
 #include <map>
+#include <stack>
 
 #define YYSTYPE atributos
 using namespace std;
@@ -23,17 +24,19 @@ int var_qnt = 0;
 int var_temp_qnt = 0;
 set<string> variaveisNome;
 set<string> variaveisTempNome;
-map<string, tab> tabelaSimbolos;
-
+stack<map<string, tab>> pilhaDeSimbolos;
+map<string, tab> tabelaGeracao;
 
 
 int yylex(void);
 void yyerror(string);
 void adicionarVariavel(string nome, string tipo);
+tab buscarVariavel(string nome);
 string gentempcode(string tipo);
 string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
 string conversao(string var, string tipoOrigem, string tipoDest, string &codigo);
+
 %}
 
 %token TK_NUM
@@ -63,10 +66,14 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
                         "#include <stdio.h>\n"
                         "int main(void) \n{\n";
 
-        for (auto& par : tabelaSimbolos) {
+        for (auto& par : tabelaGeracao) {
             if (variaveisNome.count(par.second.elemento)) {
-                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";   // var " + par.first + "\n";
-            } else {
+                codigo += "\t" + par.second.tipo + " " + par.second.elemento + "; \t// var " + par.first + "\n";
+            }
+        } 
+
+        for (auto& par : tabelaGeracao) {
+            if (variaveisTempNome.count(par.second.elemento)) {
                 codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";\n";
             }
         }
@@ -77,8 +84,18 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         cout << codigo << endl;
     };
     
-    BLOCO : '{' COMANDOS '}' {
-        $$.traducao = $2.traducao;
+    BLOCO : '{' 
+    
+            {
+                map<string, tab> novoEscopo;
+                pilhaDeSimbolos.push(novoEscopo);
+
+            }
+            COMANDOS '}' 
+            {
+            
+                pilhaDeSimbolos.pop();
+                $$.traducao = $3.traducao;
     };
     
     COMANDOS
@@ -91,16 +108,35 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
     
     COMANDO
         : E ';' {
+      
             $$ = $1;
         }
         | TIPO TK_ID ';' {
-       		 if (tabelaSimbolos.count($2.label)) {
-            	cout << "Erro: Variável '" << $2.label << "' já foi declarada." << endl;
-            	exit(1);
+            adicionarVariavel($2.label, $1.label);
+            $$.traducao = ""; 
         }
-        	adicionarVariavel($2.label, $1.label);
-        	$$.traducao = ""; 
-    };
+
+        | TIPO TK_ID '=' E ';' {
+            adicionarVariavel($2.label, $1.label);
+        
+            tab infoVar = buscarVariavel($2.label);
+            string nomeMem = infoVar.elemento;
+            string tipoVar = infoVar.tipo;
+
+       
+            string tipoExpr = $4.tipoExp;
+        
+            string codConv = "";
+            string valorFinalExpr = conversao($4.label, tipoExpr, tipoVar, codConv);
+
+            $$.traducao = $4.traducao + codConv + "\t" + nomeMem + " = " + valorFinalExpr + ";\n";
+
+            $$.tipoExp = ""; 
+            $$.label = "";
+        }
+        | BLOCO {         
+            $$ = $1;   
+        };
     
     TIPO
         : TK_TIPO_INT     { $$.label = "int"; $$.tipoExp = "int";}
@@ -110,10 +146,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
     
     E
         : E '+' E {
-            string tipoEsq = tabelaSimbolos[$1.label].tipo;
-            string tipoDir = tabelaSimbolos[$3.label].tipo;
+            string tipoEsq = $1.tipoExp;
+            string tipoDir = $3.tipoExp;
+            
             string tipoTemp = tipoResult(tipoEsq, tipoDir);
-           
             string codConv = "";
 
             string esqConv = conversao($1.label, tipoEsq, tipoTemp, codConv);
@@ -124,8 +160,8 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.tipoExp = tipoTemp;
         }
         | E '-' E {
-            string tipoEsq = tabelaSimbolos[$1.label].tipo;
-            string tipoDir = tabelaSimbolos[$3.label].tipo;
+            string tipoEsq = $1.tipoExp;
+            string tipoDir = $3.tipoExp;
             string tipoTemp = tipoResult(tipoEsq, tipoDir);
            
             string codConv = "";
@@ -138,8 +174,8 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.tipoExp = tipoTemp;
         }
         | E '*' E {
-            string tipoEsq = tabelaSimbolos[$1.label].tipo;
-            string tipoDir = tabelaSimbolos[$3.label].tipo;
+            string tipoEsq = $1.tipoExp;
+            string tipoDir = $3.tipoExp;
             string tipoTemp = tipoResult(tipoEsq, tipoDir);
            
             string codConv = "";
@@ -152,8 +188,8 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
             $$.tipoExp = tipoTemp;
         }
         | E '/' E {
-            string tipoEsq = tabelaSimbolos[$1.label].tipo;
-            string tipoDir = tabelaSimbolos[$3.label].tipo;
+            string tipoEsq = $1.tipoExp;
+            string tipoDir = $3.tipoExp;
             string tipoTemp = tipoResult(tipoEsq, tipoDir);
            
             string codConv = "";
@@ -171,37 +207,39 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 		| E '<' E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " < " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            
             $$.tipoExp = "bool";
         }
 		| E TK_MENOR_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " <= " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
             $$.tipoExp = "bool";
         }
 		| E '>' E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " > " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
             $$.tipoExp = "bool";
         }
 		| E TK_MAIOR_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " >= " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
             $$.tipoExp = "bool";
         }
 		| E TK_IGUAL_IGUAL E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " == " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
             $$.tipoExp = "bool";
         }
 		| E TK_DIFERENTE E {
             $$.label = gentempcode2("bool");
             $$.traducao = $1.traducao + $3.traducao + "\t" + $$.label + " = " + $1.label + " != " + $3.label + ";\n";
-            if(tabelaSimbolos[$1.label].tipo != tabelaSimbolos[$3.label].tipo) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
+            if($1.tipoExp != $3.tipoExp) yyerror("Erro de sintaxe: Nao podemos utilizar operadores relacionais com tipos diferentes");
             $$.tipoExp = "bool";
         }
 		| E TK_AND E {
@@ -244,21 +282,22 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
         | TK_ID '=' E {
             string nomeVar = $1.label;
-            
-            if (!tabelaSimbolos.count(nomeVar)) {
-                adicionarVariavel(nomeVar, $3.tipoExp);
-            }
-            string nomeMem = tabelaSimbolos[nomeVar].elemento;
-            string tipoVar = tabelaSimbolos[nomeVar].tipo;
+            tab infoVar = buscarVariavel(nomeVar);
+            string nomeMem = infoVar.elemento;    
+            string tipoVar = infoVar.tipo;
             string tipoExpr = $3.tipoExp;
 
             if(tipoVar == "bool") tipoVar = "int";
             if(tipoExpr == "bool") tipoExpr = "int";
 
             if (tipoVar != tipoExpr) {
-               cout << "Erro: Tipos incompatíveis na atribuição!" << endl;
+               cout << "Warning: Tipos incompatíveis na atribuição!" << endl;
             }
-            $$.traducao = $1.traducao + $3.traducao + "\t" + nomeMem + " = " + $3.label + ";\n";
+            $$.traducao = $3.traducao + "\t" + nomeMem + " = " + $3.label + ";\n";
+
+            $$.tipoExp = ""; 
+            $$.label = "";
+
         }
         | TK_NUM {
             $$.label = gentempcode("int");
@@ -267,17 +306,16 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
         }
         | TK_ID {
             
-            if (!tabelaSimbolos.count($1.label)) {
-                adicionarVariavel($1.label, "int");
-            }
-            string nomeMem = tabelaSimbolos[$1.label].elemento;
-            string tipo = tabelaSimbolos[$1.label].tipo;
-            $$.label = gentempcode(tipo);
+            tab infoVar = buscarVariavel($1.label);
+        
+            string nomeMem = infoVar.elemento;
+        
+            $$.label = gentempcode(infoVar.tipo);
             $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
-            $$.tipoExp = tipo;
+            $$.tipoExp = infoVar.tipo;
         }
         | '(' TIPO ')' E {
-            string tipoOrigem = tabelaSimbolos[$4.label].tipo;
+            string tipoOrigem = $4.tipoExp;
             string tipoDest = $2.tipoExp;
 
             string codConv = "";
@@ -285,8 +323,9 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
             $$.label = convertido;
             $$.traducao = $4.traducao + codConv;
+            $$.tipoExp = tipoDest;
 
-            tabelaSimbolos[$$.label].tipo = tipoDest;
+            
         }
 
 %%
@@ -296,18 +335,43 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 int yyparse();
 
 void adicionarVariavel(string nome, string tipo) {
+    
+    if (pilhaDeSimbolos.top().count(nome)) {
+        yyerror("Erro: A variavel '" + nome + "' ja foi declarada.");
+        return;
+    }
+    
     string nomeMem = "v" + to_string(var_qnt++);
-    tabelaSimbolos[nome] = { tipo, nomeMem };
+    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem };
+    tabelaGeracao[nome] = { tipo, nomeMem };
     variaveisNome.insert(nomeMem);
     
+}
+
+tab buscarVariavel(string nome) {
+   
+    stack<map<string, tab>> tempStack = pilhaDeSimbolos;
+    
+    while (!tempStack.empty()) {
+        map<string, tab> escopoAtual = tempStack.top();
+        if (escopoAtual.count(nome)) {
+          
+            return escopoAtual.at(nome);
+        }
+        tempStack.pop(); 
+    }
+    
+  
+    yyerror("Erro Semantico: Variavel '" + nome + "' nao foi declarada.");
+    return {"error", "error"}; 
 }
 
 string gentempcode(string tipo) {
     while (true) {
         string nomeTemp = "t" + to_string(var_temp_qnt++);
-        if (!tabelaSimbolos.count(nomeTemp)) { 
+        if (!tabelaGeracao.count(nomeTemp)) { 
             variaveisTempNome.insert(nomeTemp);
-            tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
+            tabelaGeracao[nomeTemp] = { tipo, nomeTemp };
             return nomeTemp;
         }
     }
@@ -317,9 +381,9 @@ string gentempcode2(string tipo) {
     if(tipo == "bool") tipo = "int";
     while (true) {
         string nomeTemp = "t" + to_string(var_temp_qnt++);
-        if (!tabelaSimbolos.count(nomeTemp)) {
+        if (!tabelaGeracao.count(nomeTemp)) {
             variaveisTempNome.insert(nomeTemp);
-            tabelaSimbolos[nomeTemp] = { tipo, nomeTemp };
+            tabelaGeracao[nomeTemp] = { tipo, nomeTemp };
             return nomeTemp;
         }
     }
@@ -346,6 +410,10 @@ string conversao(string var, string tipoOrigem, string tipoDest, string &codigo)
 
 int main(int argc, char* argv[]) {
     var_temp_qnt = 0;
+    
+    map<string, tab> escopoGlobal;
+    pilhaDeSimbolos.push(escopoGlobal);
+
     yyparse();
     return 0;
 }
