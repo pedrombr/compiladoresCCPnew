@@ -143,7 +143,10 @@ string gerarotulo();
             }
             string rotulo_fim = gerarotulo();
             $$.traducao = $3.traducao;
-            $$.traducao += "\tif (!" + $3.label + ") goto " + rotulo_fim + ";\n"; 
+
+            string tempNeg = gentempcode2("bool");
+            $$.traducao += "\t" + tempNeg + " = !" + $3.label + ";\n";
+            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n"; 
             $$.traducao += $5.traducao;
             $$.traducao += rotulo_fim + ":\n"; 
         }
@@ -154,12 +157,35 @@ string gerarotulo();
             string rotulo_else = gerarotulo();
             string rotulo_fim = gerarotulo();
             $$.traducao = $3.traducao;
-            $$.traducao += "\tif (!" + $3.label + ") goto " + rotulo_else + ";\n";
+
+            string tempNeg = gentempcode2("bool");
+            $$.traducao += "\t" + tempNeg + " = !" + $3.label + ";\n";
+            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_else + ";\n";
             $$.traducao += $5.traducao;
             $$.traducao += "\tgoto " + rotulo_fim + ";\n";
             $$.traducao += rotulo_else + ":\n";
             $$.traducao += $7.traducao;
             $$.traducao += rotulo_fim + ":\n";
+        }
+        | TK_WHILE '(' E ')' COMANDO {
+            if($3.tipoExp != "bool"){
+                yyerror("Erro Semantico: A expressao do WHILE deve ser booleana.");
+            }
+            string rotulo_inicio = gerarotulo();
+            string rotulo_fim = gerarotulo();
+
+            $$.traducao = rotulo_inicio + ":\n";
+            $$.traducao += $3.traducao;
+
+            string tempNeg = gentempcode2("bool");
+            $$.traducao += "\t" + tempNeg + " = !" + $3.label + ";\n";
+            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+            $$.traducao += $5.traducao;
+            $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
+            $$.traducao += rotulo_fim + ":\n";
+        }
+        | TK_DO COMANDO TK_WHILE '(' E ')' ';'{
+
         }
         ;
     
