@@ -49,7 +49,7 @@ string gerarotulo();
 %token TK_TRUE TK_FALSE
 %token TK_MENOR_IGUAL TK_MAIOR_IGUAL TK_IGUAL_IGUAL TK_DIFERENTE
 %token TK_AND TK_OR 
-%token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_CASE
+%token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_CASE TK_DEFAULT
 
 
 %start S
@@ -200,6 +200,28 @@ string gerarotulo();
             $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
             $$.traducao += rotulo_fim + ":\n";
         }
+        | TK_FOR '(' E_OPC ';' E_OPC ';' E_OPC ')' COMANDO {
+            if($5.tipoExp != "bool" && $5.label != ""){
+                yyerror("Erro Semantico: A expressao de condicao do FOR deve ser booleana.");
+            }
+            string rotulo_cond = gerarotulo();
+            string rotulo_fim = gerarotulo();
+
+            $$.traducao = $3.traducao;
+            $$.traducao += rotulo_cond + ":\n";
+            $$.traducao += $5.traducao;
+
+            if ($5.label != "") {
+                string tempNeg = gentempcode2("bool");
+                $$.traducao += "\t" + tempNeg + " = !" + $5.label + ";\n";
+                $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+            }
+
+            $$.traducao += $9.traducao;
+            $$.traducao += $7.traducao;
+            $$.traducao += "\tgoto " + rotulo_cond + ";\n";
+            $$.traducao += rotulo_fim + ":\n";
+        }
         ;
     
     TIPO
@@ -208,6 +230,11 @@ string gerarotulo();
         | TK_TIPO_CHAR    { $$.label = "char"; $$.tipoExp = "char"; }
         | TK_TIPO_BOOLEAN { $$.label = "bool"; $$.tipoExp = "bool"; };
     
+    E_OPC
+        : E { $$ = $1; }
+        |   { $$.traducao = ""; $$.label = ""; $$.tipoExp = ""; }
+        ;
+
     E
         : E '+' E {
             string tipoEsq = $1.tipoExp;
