@@ -64,8 +64,6 @@ string gerarotulo();
         string codigo = "/*Compilador CCP*/\n"
                         "#include <iostream>\n"
                         "#include <string.h>\n"
-                        "#define true 1\n"
-                        "#define false 0\n"
                         "#include <stdio.h>\n"
                         "int main(void) \n{\n";
 
