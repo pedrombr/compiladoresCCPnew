@@ -5,6 +5,7 @@
 #include <set>
 #include <map>
 #include <stack>
+#include <utility>
 
 #define YYSTYPE atributos
 using namespace std;
@@ -27,7 +28,7 @@ set<string> variaveisNome;
 set<string> variaveisTempNome;
 stack<map<string, tab>> pilhaDeSimbolos;
 map<string, tab> tabelaGeracao;
-
+stack<pair<string, string>> pilhaDeRotulosLoop;
 
 int yylex(void);
 void yyerror(string);
@@ -167,60 +168,118 @@ string gerarotulo();
             $$.traducao += $7.traducao;
             $$.traducao += rotulo_fim + ":\n";
         }
-        | TK_WHILE '(' E ')' COMANDO {
-            if($3.tipoExp != "bool"){
-                yyerror("Erro Semantico: A expressao do WHILE deve ser booleana.");
+        | TK_WHILE '(' E ')' {
+                string rotulo_inicio = gerarotulo();
+                string rotulo_fim = gerarotulo();
+                pilhaDeRotulosLoop.push({rotulo_inicio, rotulo_fim});
+
+                $$.label = rotulo_inicio;
+                $$.traducao = rotulo_fim;
+
             }
-            string rotulo_inicio = gerarotulo();
-            string rotulo_fim = gerarotulo();
+            COMANDO {
+                if($3.tipoExp != "bool"){
+                    yyerror("Erro Semantico: A expressao do WHILE deve ser booleana.");
+                }
+                string rotulo_inicio = $5.label;
+                string rotulo_fim = $5.traducao;
 
-            $$.traducao = rotulo_inicio + ":\n";
-            $$.traducao += $3.traducao;
+                $$.traducao = rotulo_inicio + ":\n";
+                $$.traducao += $3.traducao;
 
-            string tempNeg = gentempcode2("bool");
-            $$.traducao += "\t" + tempNeg + " = !" + $3.label + ";\n";
-            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
-            $$.traducao += $5.traducao;
-            $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
-            $$.traducao += rotulo_fim + ":\n";
-        }
-        | TK_DO COMANDO TK_WHILE '(' E ')' ';'{
-            if($5.tipoExp != "bool"){
-                yyerror("Erro Semantico: A expressao do DO/WHILE deve ser booleana.");
-            }
-            string rotulo_inicio = gerarotulo();
-            string rotulo_fim = gerarotulo();
-            $$.traducao = rotulo_inicio + ":\n";
-            $$.traducao += $2.traducao;
-            $$.traducao += $5.traducao;
-
-            string tempNeg = gentempcode2("bool");
-            $$.traducao += "\t" + tempNeg + " = !" + $5.label + ";\n";
-            $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
-            $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
-            $$.traducao += rotulo_fim + ":\n";
-        }
-        | TK_FOR '(' E_OPC ';' E_OPC ';' E_OPC ')' COMANDO {
-            if($5.tipoExp != "bool" && $5.label != ""){
-                yyerror("Erro Semantico: A expressao de condicao do FOR deve ser booleana.");
-            }
-            string rotulo_cond = gerarotulo();
-            string rotulo_fim = gerarotulo();
-
-            $$.traducao = $3.traducao;
-            $$.traducao += rotulo_cond + ":\n";
-            $$.traducao += $5.traducao;
-
-            if ($5.label != "") {
                 string tempNeg = gentempcode2("bool");
-                $$.traducao += "\t" + tempNeg + " = !" + $5.label + ";\n";
+                $$.traducao += "\t" + tempNeg + " = !" + $3.label + ";\n";
                 $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+                $$.traducao += $6.traducao;
+                $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
+                $$.traducao += rotulo_fim + ":\n";
+
+                pilhaDeRotulosLoop.pop();
+            }
+        | TK_DO {
+                string rotulo_inicio = gerarotulo();
+                string rotulo_continue = gerarotulo();
+                string rotulo_fim = gerarotulo();
+            
+                pilhaDeRotulosLoop.push({rotulo_continue, rotulo_fim});
+
+                $$.label = rotulo_inicio;
+                $$.traducao = rotulo_continue;
+                $$.tipoExp = rotulo_fim;
+            
+            }
+            COMANDO TK_WHILE '(' E ')' ';'{
+                if($6.tipoExp != "bool"){
+                    yyerror("Erro Semantico: A expressao do DO/WHILE deve ser booleana.");
+                }
+                string rotulo_inicio = $2.label;
+                string rotulo_continue = $2.traducao;
+                string rotulo_fim = $2.tipoExp;
+            
+                $$.traducao = rotulo_inicio + ":\n";
+                $$.traducao += $3.traducao;
+                $$.traducao += rotulo_continue + ":\n";
+                $$.traducao += $6.traducao;
+
+                string tempNeg = gentempcode2("bool");
+                $$.traducao += "\t" + tempNeg + " = !" + $6.label + ";\n";
+                $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+                $$.traducao += "\tgoto " + rotulo_inicio + ";\n";
+                $$.traducao += rotulo_fim + ":\n";
+
+                pilhaDeRotulosLoop.pop();
+            }
+        | TK_FOR '(' E_OPC ';' {
+                string rotulo_cond = gerarotulo();
+                string rotulo_inc = gerarotulo();
+                string rotulo_fim = gerarotulo();
+
+                pilhaDeRotulosLoop.push({rotulo_inc, rotulo_fim}); 
+                
+                $$.label = rotulo_cond;
+                $$.traducao = rotulo_inc;
+                $$.tipoExp = rotulo_fim;
             }
 
-            $$.traducao += $9.traducao;
-            $$.traducao += $7.traducao;
-            $$.traducao += "\tgoto " + rotulo_cond + ";\n";
-            $$.traducao += rotulo_fim + ":\n";
+            E_OPC ';' E_OPC ')' COMANDO {
+                if($6.tipoExp != "bool" && $6.label != ""){
+                    yyerror("Erro Semantico: A expressao de condicao do FOR deve ser booleana.");
+                }
+                string rotulo_cond = $5.label;
+                string rotulo_inc = $5.traducao;
+                string rotulo_fim = $5.tipoExp;
+
+                $$.traducao = $3.traducao;
+                $$.traducao += rotulo_cond + ":\n";
+                $$.traducao += $6.traducao;
+
+                if ($6.label != "") {
+                    string tempNeg = gentempcode2("bool");
+                    $$.traducao += "\t" + tempNeg + " = !" + $6.label + ";\n";
+                    $$.traducao += "\tif (" + tempNeg + ") goto " + rotulo_fim + ";\n";
+                }
+
+                $$.traducao += $10.traducao;
+                $$.traducao += rotulo_inc + ":\n";
+                $$.traducao += $8.traducao;
+                $$.traducao += "\tgoto " + rotulo_cond + ";\n";
+                $$.traducao += rotulo_fim + ":\n";
+
+                pilhaDeRotulosLoop.pop();
+            }
+        | TK_BREAK ';' {
+            if (pilhaDeRotulosLoop.empty()) {
+                yyerror("Erro Semantico: 'encerrar' (break) fora de um loop.");
+            }
+            string rotulo_fim = pilhaDeRotulosLoop.top().second;
+            $$.traducao = "\tgoto " + rotulo_fim + ";\n";
+        }
+        | TK_CONTINUE ';' {
+            if (pilhaDeRotulosLoop.empty()) {
+                yyerror("Erro Semantico: 'pular' (continue) fora de um loop.");
+            }
+            string rotulo_inicio = pilhaDeRotulosLoop.top().first;
+            $$.traducao = "\tgoto " + rotulo_inicio + ";\n";
         }
         ;
     
