@@ -49,6 +49,9 @@ ID {LETRA}({LETRA}|{NUM})*
 {ID}           { yylval.label = yytext; return TK_ID; }
 {REAL}         { yylval.label = yytext; return TK_FLOAT_VAL; }
 {CHAR}         { yylval.label = yytext; return TK_CHAR_VAL; }
+
+"\""[^"\n]*"\""   { yylval.label = yytext; return TK_STRING_VAL; }
+
 .              { *yytext; }
 
 %%
