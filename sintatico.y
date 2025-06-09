@@ -34,6 +34,7 @@ stack<pair<string, string>> pilhaDeRotulosLoop;
 stack<string> switchVar;
 stack<vector<pair<string, string>>> caseRotulos;
 stack<string> defaultRotulos;
+set<string> stringsAlocados;
 
 int yylex(void);
 void yyerror(string);
@@ -107,10 +108,8 @@ string gerarotulo();
         codigo += $5.traducao;
 
         string codigo_free = "\n";
-        for (auto& par : tabelaGeracao) {
-            if (par.second.tipo == "string") {
-                codigo_free += "\tfree(" + par.second.elemento + ");\n";
-            }
+        for (const string& var_alocada : stringsAlocados) {
+            codigo_free += "\tfree(" + var_alocada + ");\n";
         }
         codigo += codigo_free;
 
@@ -167,6 +166,7 @@ string gerarotulo();
                 $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
                 $$.traducao += "\t" + nomeMem + " = (char*) malloc(" + temp_size + ");\n";
                 $$.traducao += "\tstrcpy(" + nomeMem + ", " + $4.label + ");\n";
+                stringsAlocados.insert(nomeMem);
             } else {
                 string codConv = "";
                 string valorFinalExpr = conversao($4.label, tipoExpr, tipoVar, codConv);
@@ -443,6 +443,7 @@ string gerarotulo();
                 $$.traducao += "\t" + $$.label + " = (char*) malloc(" + temp_size + ");\n";
                 $$.traducao += "\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
                 $$.traducao += "\tstrcat(" + $$.label + ", " + $3.label + ");\n";
+                stringsAlocados.insert($$.label);
             } else { 
                 string tipoTemp = tipoResult(tipoEsq, tipoDir);
                 string codConv = "";
@@ -572,15 +573,21 @@ string gerarotulo();
         }
         | TK_STRING_VAL {
             $$.tipoExp = "string";
-            string temp_str = gentempcode("string");
+            string temp_literal_ptr = gentempcode("string"); 
+            string temp_str_heap = gentempcode("string");  
             string temp_len = gentempcode("int");
             string temp_size = gentempcode("int");
 
-            $$.traducao  = "\t" + temp_len + " = tamanhoString(" + $1.label + ");\n";
+            $$.traducao  = "\t" + temp_literal_ptr + " = " + $1.label + ";\n";
+
+            $$.traducao += "\t" + temp_len + " = tamanhoString(" + temp_literal_ptr + ");\n";
+
             $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
-            $$.traducao += "\t" + temp_str + " = (char*) malloc(" + temp_size + ");\n";
-            $$.traducao += "\tstrcpy(" + temp_str + ", " + $1.label + ");\n";
-            $$.label = temp_str;
+            $$.traducao += "\t" + temp_str_heap + " = (char*) malloc(" + temp_size + ");\n";
+            $$.traducao += "\tstrcpy(" + temp_str_heap + ", " + temp_literal_ptr + ");\n";
+            stringsAlocados.insert(temp_str_heap);
+
+            $$.label = temp_str_heap;
         }
         |TK_TRUE{
     		$$.label = gentempcode2("bool");
@@ -609,6 +616,7 @@ string gerarotulo();
                 $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
                 $$.traducao += "\t" + nomeMem + " = (char*) malloc(" + temp_size + ");\n";
                 $$.traducao += "\tstrcpy(" + nomeMem + ", " + $3.label + ");\n";
+                stringsAlocados.insert(nomeMem);
                 $$.tipoExp = "";
                 $$.label = "";
             } else { 
