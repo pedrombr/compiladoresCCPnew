@@ -57,6 +57,7 @@ string gerarotulo();
 %token TK_MENOR_IGUAL TK_MAIOR_IGUAL TK_IGUAL_IGUAL TK_DIFERENTE
 %token TK_AND TK_OR 
 %token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_STRING_VAL TK_CASE TK_DEFAULT
+%token TK_SCAN TK_PRINT
 
 
 %start S
@@ -321,6 +322,38 @@ string gerarotulo();
             }
             string rotulo_inicio = pilhaDeRotulosLoop.top().first;
             $$.traducao = "\tgoto " + rotulo_inicio + ";\n";
+        }
+        | TK_PRINT '(' E ')' ';' { 
+            if ($3.tipoExp.empty() || $3.tipoExp == "void") {
+                yyerror("Erro Semantico: Nao e possivel imprimir um valor vazio ou void.");
+            }
+            string formato;
+        
+            if ($3.tipoExp == "int")         formato = "\"%d\\n\"";
+            else if ($3.tipoExp == "float")  formato = "\"%f\\n\"";
+            else if ($3.tipoExp == "char")   formato = "\"%c\\n\"";
+            else if ($3.tipoExp == "string") formato = "\"%s\\n\"";
+            else if ($3.tipoExp == "bool")   formato = "\"%d\\n\""; 
+
+            $$.traducao = $3.traducao + "\tprintf(" + formato + ", " + $3.label + ");\n";
+        }
+        | TK_SCAN '(' TK_ID ')' ';' {  
+            tab infoVar = buscarVariavel($3.label);
+            string formato;
+            string endereco = "&" + infoVar.elemento;
+        
+            if (infoVar.tipo == "int")        formato = "\"%d\"";
+            else if (infoVar.tipo == "float") formato = "\"%f\"";
+            else if (infoVar.tipo == "char")  formato = "\" %c\""; 
+        
+            if (infoVar.tipo == "string") {
+                string bufferSize = "256"; 
+                $$.traducao  = "\t" + infoVar.elemento + " = (char*) malloc(" + bufferSize + ");\n";
+                $$.traducao += "\tscanf(\"%255s\", " + infoVar.elemento + ");\n"; 
+                stringsAlocados.insert(infoVar.elemento); 
+            } else {
+                $$.traducao = "\tscanf(" + formato + ", " + endereco + ");\n";
+            }
         }
         | INICIO_SWITCH BLOCO_CASES {
            
