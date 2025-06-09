@@ -33,6 +33,8 @@ ID {LETRA}({LETRA}|{NUM})*
 "pular"        { return TK_CONTINUE; }
 "caso"         { return TK_CASE; }
 "padrao"       { return TK_DEFAULT; }
+"ler"          { return TK_SCAN; }
+"escrever"     { return TK_PRINT; }
 [(){}[\];:,]   { return *yytext; }
 [+\-*/]        { return *yytext; }
 "<"            { return '<'; }
