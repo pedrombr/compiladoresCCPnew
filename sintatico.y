@@ -6,6 +6,7 @@
 #include <map>
 #include <stack>
 #include <utility>
+#include <vector>
 
 #define YYSTYPE atributos
 using namespace std;
@@ -24,11 +25,15 @@ struct tab {
 int var_qnt = 0; 
 int var_temp_qnt = 0;
 int rotulos_qnt = 0;
+
 set<string> variaveisNome;
 set<string> variaveisTempNome;
 stack<map<string, tab>> pilhaDeSimbolos;
 map<string, tab> tabelaGeracao;
 stack<pair<string, string>> pilhaDeRotulosLoop;
+stack<string> switchVar;
+stack<vector<pair<string, string>>> caseRotulos;
+stack<string> defaultRotulos;
 
 int yylex(void);
 void yyerror(string);
@@ -54,6 +59,7 @@ string gerarotulo();
 
 
 %start S
+%right UMINUS
 %left '+' '-'
 %left '*' '/'
 %right '(' ')'
@@ -279,8 +285,91 @@ string gerarotulo();
             string rotulo_inicio = pilhaDeRotulosLoop.top().first;
             $$.traducao = "\tgoto " + rotulo_inicio + ";\n";
         }
+        | INICIO_SWITCH BLOCO_CASES {
+           
+            string codigo_saltos = "";
+        
+            string var = switchVar.top(); switchVar.pop();
+            vector<pair<string, string>> cases = caseRotulos.top(); caseRotulos.pop();
+            string rotulo_default = defaultRotulos.top(); defaultRotulos.pop();
+            
+            string rotulo_fim_switch = $1.label;
+            pilhaDeRotulosLoop.pop();
+            
+            for (const auto& caso : cases) {
+                codigo_saltos += "\tif (" + var + " == " + caso.first + ") goto " + caso.second + ";\n";
+            }
+            
+            if (!rotulo_default.empty()) {
+                codigo_saltos += "\tgoto " + rotulo_default + ";\n";
+            } else {
+                codigo_saltos += "\tgoto " + rotulo_fim_switch + ";\n";
+            }
+            
+            $$.traducao = $1.traducao + codigo_saltos + $2.traducao + rotulo_fim_switch + ":\n";
+        }
         ;
+
+    INICIO_SWITCH
+        : TK_SWITCH '(' E ')' {
+       
+            if ($3.tipoExp == "float") {
+            yyerror("Erro Semantico: Expressao do switch nao pode ser do tipo flutuante.");
+            }
     
+            string rotulo_fim = gerarotulo();
+        
+            pilhaDeRotulosLoop.push({"", rotulo_fim});
+        
+            switchVar.push($3.label);
+            caseRotulos.push({});
+            defaultRotulos.push("");
+        
+            $$.traducao = $3.traducao;
+            $$.label = rotulo_fim;
+        }
+    ;
+    BLOCO_CASES
+        : '{' LISTA_CASOS '}' {
+       
+            $$.traducao = $2.traducao;
+        }
+    ;
+
+    LISTA_CASOS
+        : LISTA_CASOS ITEM_CASE {
+            $$.traducao = $1.traducao + $2.traducao;
+    }
+    | {
+        $$.traducao = "";
+        }
+    ;
+
+    ITEM_CASE
+        : TK_CASE CONSTANTE ':' COMANDOS {
+        
+            string rotulo_case = gerarotulo();
+        
+            caseRotulos.top().push_back(make_pair($2.label, rotulo_case));
+        
+            $$.traducao = rotulo_case + ":\n" + $4.traducao;
+        }
+        | TK_DEFAULT ':' COMANDOS {
+        
+            if (!defaultRotulos.top().empty()) {
+                yyerror("Erro Semantico: Multiplos 'default' no mesmo switch.");
+        }
+            string rotulo_default = gerarotulo();
+            defaultRotulos.top() = rotulo_default;
+        
+            $$.traducao = rotulo_default + ":\n" + $3.traducao;
+        }
+    ;   
+    CONSTANTE
+        : TK_NUM { $$ = $1; }
+        | TK_CHAR_VAL { $$ = $1; }
+;
+        
     TIPO
         : TK_TIPO_INT     { $$.label = "int"; $$.tipoExp = "int";}
         | TK_TIPO_FLOAT   { $$.label = "float"; $$.tipoExp = "float"; }
@@ -348,6 +437,14 @@ string gerarotulo();
             $$.label = gentempcode(tipoTemp);
             $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " / " + dirConv + ";\n";
             $$.tipoExp = tipoTemp;
+        }
+        | '-' E %prec UMINUS {
+            if ($2.tipoExp != "int" && $2.tipoExp != "float") {
+                yyerror("Erro Semantico: Operador unario '-' so pode ser aplicado a tipos numericos (int, float).");
+            }
+            $$.tipoExp = $2.tipoExp;
+            $$.label = gentempcode($$.tipoExp);
+            $$.traducao = $2.traducao + "\t" + $$.label + " = -" + $2.label + ";\n";
         }
         | '(' E ')' {
             $$ = $2;
