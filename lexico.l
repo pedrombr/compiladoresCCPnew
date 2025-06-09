@@ -33,7 +33,7 @@ ID {LETRA}({LETRA}|{NUM})*
 "pular"        { return TK_CONTINUE; }
 "caso"         { return TK_CASE; }
 "padrao"       { return TK_DEFAULT; }
-[(){}[\];,]    { return *yytext; }
+[(){}[\];:,]   { return *yytext; }
 [+\-*/]        { return *yytext; }
 "<"            { return '<'; }
 "<="           { return TK_MENOR_IGUAL; }
