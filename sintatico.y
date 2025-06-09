@@ -55,7 +55,7 @@ string gerarotulo();
 %token TK_TRUE TK_FALSE
 %token TK_MENOR_IGUAL TK_MAIOR_IGUAL TK_IGUAL_IGUAL TK_DIFERENTE
 %token TK_AND TK_OR 
-%token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_CASE TK_DEFAULT
+%token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_STRING_VAL TK_CASE TK_DEFAULT
 
 
 %start S
@@ -71,23 +71,50 @@ string gerarotulo();
                         "#include <iostream>\n"
                         "#include <string.h>\n"
                         "#include <stdio.h>\n"
-                        "int main(void) \n{\n";
+                        "#include <stdlib.h>\n\n";
+
+        codigo += "int tamanhoString(char* s) {\n"
+              "\tif (s == NULL) return 0;\n"
+              "\tint tam = 0;\n"
+              "\twhile (s[tam] != '\\0') {\n"
+              "\t\ttam++;\n"
+              "\t}\n"
+              "\treturn tam;\n"
+              "}\n\n";
+                        
+        codigo += "int main(void) \n{\n";
 
         for (auto& par : tabelaGeracao) {
-            if (variaveisNome.count(par.second.elemento)) {
-                codigo += "\t" + par.second.tipo + " " + par.second.elemento + "; \t// var " + par.first + "\n";
-            }
-        } 
+            if (variaveisNome.count(par.second.elemento) || variaveisTempNome.count(par.second.elemento)) {
+                string tipo = par.second.tipo;
+                string nome = par.second.elemento;
+                string declaracao;
 
-        for (auto& par : tabelaGeracao) {
-            if (variaveisTempNome.count(par.second.elemento)) {
-                codigo += "\t" + par.second.tipo + " " + par.second.elemento + ";\n";
+                if (tipo == "string") {
+                    declaracao = "\tchar* " + nome + " = NULL;";
+                } else {
+                    declaracao = "\t" + tipo + " " + nome + ";";
+                }
+
+                if (variaveisNome.count(nome)) {
+                    declaracao += " // var " + par.first;
+                }
+                codigo += declaracao + "\n";
             }
         }
 
         codigo += "\n";
         codigo += $5.traducao;
-        codigo += "\treturn 0;\n}";
+
+        string codigo_free = "\n";
+        for (auto& par : tabelaGeracao) {
+            if (par.second.tipo == "string") {
+                codigo_free += "\tfree(" + par.second.elemento + ");\n";
+            }
+        }
+        codigo += codigo_free;
+
+        codigo += "\n\treturn 0;\n}";
         cout << codigo << endl;
     };
     
@@ -131,10 +158,20 @@ string gerarotulo();
        
             string tipoExpr = $4.tipoExp;
         
-            string codConv = "";
-            string valorFinalExpr = conversao($4.label, tipoExpr, tipoVar, codConv);
+            if (tipoVar == "string" && tipoExpr == "string") {
+                string temp_len = gentempcode("int");
+                string temp_size = gentempcode("int");
 
-            $$.traducao = $4.traducao + codConv + "\t" + nomeMem + " = " + valorFinalExpr + ";\n";
+                $$.traducao = $4.traducao;
+                $$.traducao += "\t" + temp_len + " = tamanhoString(" + $4.label + ");\n";
+                $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
+                $$.traducao += "\t" + nomeMem + " = (char*) malloc(" + temp_size + ");\n";
+                $$.traducao += "\tstrcpy(" + nomeMem + ", " + $4.label + ");\n";
+            } else {
+                string codConv = "";
+                string valorFinalExpr = conversao($4.label, tipoExpr, tipoVar, codConv);
+                $$.traducao = $4.traducao + codConv + "\t" + nomeMem + " = " + valorFinalExpr + ";\n";
+            }
 
             $$.tipoExp = ""; 
             $$.label = "";
@@ -374,7 +411,8 @@ string gerarotulo();
         : TK_TIPO_INT     { $$.label = "int"; $$.tipoExp = "int";}
         | TK_TIPO_FLOAT   { $$.label = "float"; $$.tipoExp = "float"; }
         | TK_TIPO_CHAR    { $$.label = "char"; $$.tipoExp = "char"; }
-        | TK_TIPO_BOOLEAN { $$.label = "bool"; $$.tipoExp = "bool"; };
+        | TK_TIPO_BOOLEAN { $$.label = "bool"; $$.tipoExp = "bool"; }
+        | TK_STRING       { $$.label = "string"; $$.tipoExp = "string"; };
     
     E_OPC
         : E { $$ = $1; }
@@ -386,15 +424,34 @@ string gerarotulo();
             string tipoEsq = $1.tipoExp;
             string tipoDir = $3.tipoExp;
             
-            string tipoTemp = tipoResult(tipoEsq, tipoDir);
-            string codConv = "";
+            if (tipoEsq == "string" || tipoDir == "string") {
+                if (tipoEsq != "string" || tipoDir != "string") {
+                    yyerror("Erro Semantico: Concatenacao de string com outro tipo nao e permitida.");
+                }
+                $$.tipoExp = "string";
+                $$.label = gentempcode("string"); 
+                string temp_len1 = gentempcode("int");
+                string temp_len2 = gentempcode("int");
+                string temp_total_len = gentempcode("int");
+                string temp_size = gentempcode("int");
 
-            string esqConv = conversao($1.label, tipoEsq, tipoTemp, codConv);
-            string dirConv = conversao($3.label, tipoDir, tipoTemp, codConv);
-
-            $$.label = gentempcode(tipoTemp);
-            $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " + " + dirConv + ";\n";
-            $$.tipoExp = tipoTemp;
+                $$.traducao = $1.traducao + $3.traducao;
+                $$.traducao += "\t" + temp_len1 + " = tamanhoString(" + $1.label + ");\n";
+                $$.traducao += "\t" + temp_len2 + " = tamanhoString(" + $3.label + ");\n";
+                $$.traducao += "\t" + temp_total_len + " = " + temp_len1 + " + " + temp_len2 + ";\n";
+                $$.traducao += "\t" + temp_size + " = " + temp_total_len + " + 1;\n";
+                $$.traducao += "\t" + $$.label + " = (char*) malloc(" + temp_size + ");\n";
+                $$.traducao += "\tstrcpy(" + $$.label + ", " + $1.label + ");\n";
+                $$.traducao += "\tstrcat(" + $$.label + ", " + $3.label + ");\n";
+            } else { 
+                string tipoTemp = tipoResult(tipoEsq, tipoDir);
+                string codConv = "";
+                string esqConv = conversao($1.label, tipoEsq, tipoTemp, codConv);
+                string dirConv = conversao($3.label, tipoDir, tipoTemp, codConv);
+                $$.label = gentempcode(tipoTemp);
+                $$.traducao = $1.traducao + $3.traducao + codConv + "\t" + $$.label + " = " + esqConv + " + " + dirConv + ";\n";
+                $$.tipoExp = tipoTemp;
+            }
         }
         | E '-' E {
             string tipoEsq = $1.tipoExp;
@@ -513,7 +570,18 @@ string gerarotulo();
        		$$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
             $$.tipoExp = "char";
         }
+        | TK_STRING_VAL {
+            $$.tipoExp = "string";
+            string temp_str = gentempcode("string");
+            string temp_len = gentempcode("int");
+            string temp_size = gentempcode("int");
 
+            $$.traducao  = "\t" + temp_len + " = tamanhoString(" + $1.label + ");\n";
+            $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
+            $$.traducao += "\t" + temp_str + " = (char*) malloc(" + temp_size + ");\n";
+            $$.traducao += "\tstrcpy(" + temp_str + ", " + $1.label + ");\n";
+            $$.label = temp_str;
+        }
         |TK_TRUE{
     		$$.label = gentempcode2("bool");
        		$$.traducao = "\t" + $$.label + " = 1;\n";
@@ -532,17 +600,27 @@ string gerarotulo();
             string tipoVar = infoVar.tipo;
             string tipoExpr = $3.tipoExp;
 
-            if(tipoVar == "bool") tipoVar = "int";
-            if(tipoExpr == "bool") tipoExpr = "int";
+            if (tipoVar == "string" && tipoExpr == "string") {
+                string temp_len = gentempcode("int");
+                string temp_size = gentempcode("int");
 
-            if (tipoVar != tipoExpr) {
-               cout << "Warning: Tipos incompatíveis na atribuição!" << endl;
+                $$.traducao = $3.traducao;
+                $$.traducao += "\t" + temp_len + " = tamanhoString(" + $3.label + ");\n";
+                $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
+                $$.traducao += "\t" + nomeMem + " = (char*) malloc(" + temp_size + ");\n";
+                $$.traducao += "\tstrcpy(" + nomeMem + ", " + $3.label + ");\n";
+                $$.tipoExp = "";
+                $$.label = "";
+            } else { 
+                if(tipoVar == "bool") tipoVar = "int";
+                if(tipoExpr == "bool") tipoExpr = "int";
+                if (tipoVar != tipoExpr) {
+                    cout << "Warning: Tipos incompatíveis na atribuição!" << endl;
+                }
+                $$.traducao = $3.traducao + "\t" + nomeMem + " = " + $3.label + ";\n";
+                $$.tipoExp = ""; 
+                $$.label = "";
             }
-            $$.traducao = $3.traducao + "\t" + nomeMem + " = " + $3.label + ";\n";
-
-            $$.tipoExp = ""; 
-            $$.label = "";
-
         }
         | TK_NUM {
             $$.label = gentempcode("int");
@@ -550,14 +628,17 @@ string gerarotulo();
             $$.tipoExp = "int";
         }
         | TK_ID {
-            
             tab infoVar = buscarVariavel($1.label);
-        
-            string nomeMem = infoVar.elemento;
-        
-            $$.label = gentempcode(infoVar.tipo);
-            $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
-            $$.tipoExp = infoVar.tipo;
+            if (infoVar.tipo == "string") {
+                $$.label = infoVar.elemento; 
+                $$.traducao = "";              
+                $$.tipoExp = "string";
+            } else {
+                string nomeMem = infoVar.elemento;
+                $$.label = gentempcode(infoVar.tipo);
+                $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
+                $$.tipoExp = infoVar.tipo;
+            }
         }
         | '(' TIPO ')' E {
             string tipoOrigem = $4.tipoExp;
@@ -635,8 +716,8 @@ string gentempcode2(string tipo) {
 }
 
 string tipoResult(string tipo1, string tipo2){
-    if(tipo1 == "bool" || tipo2 == "bool"){
-        yyerror("Erro de sintaxe: Não podemos fazer operação com boolean");
+    if(tipo1 == "bool" || tipo2 == "bool" || tipo1 == "string" || tipo2 == "string"){ 
+        yyerror("Erro de sintaxe: Operacao invalida com o tipo booleano ou palavra.");
         return "";
     }
     else if(tipo1 == "float" || tipo2 == "float") return "float";
