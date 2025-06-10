@@ -1,52 +1,126 @@
-resultado para o nosso exemplo de entrada (exemplo.foca):
-
 /*Compilador CCP*/
-#include <iostream>
-#include<string.h>
-#define true 1
-#define false 0
-#include<stdio.h>
-int main(void) {
-        int a;
-        float b;
-        float c;
-        char d;
-        bool resultado;
-        int t1;
-        int t10;
-        int t11;
-        int t12;
-        int t13;
-        int t14;
-        int t15;
-        float t2;
-        int t3;
-        float t4;
-        float t5;
-        float t6;
-        char t7;
-        int t8;
-        float t9;
-.
-        t1 = 10;
-        a = t1;
-        t2 = 20.5;
-        b = t2;
-        t3 = a;
-        t4 = b;
-        t5 = (float) t3;
-        t6 = t5 + t4;
-        c = t6;
-        t7 = 'D';
-        d = t7;
-        t8 = a;
-        t9 = b;
-        t10 = t8 < t9;
-        t11 = a;
-        t12 = 10;
-        t13 = t11 == t12;
-        t14 = !t13;
-        t15 = t10 && t14;
-        resultado = t15;
-        return 0;
+
+exemplos:
+
+1# if else
+inteiro principal() {
+    inteiro a;
+    a = 10;
+
+    se (a > 5) {
+        a = a + 1;
+    } senao {
+        a = a - 1;
+    }
+}
+
+2# while
+inteiro principal() {
+    inteiro i;
+    i = 0;
+
+    enquanto (i < 5) {
+        i = i + 1;
+    }
+}
+
+3# do while
+inteiro principal() {
+    inteiro i;
+    i = 0;
+
+    fazer {
+        i = i + 1;
+    } enquanto (i < 5);
+}
+
+4# for
+inteiro principal() {
+    inteiro i;
+    inteiro soma;
+
+    soma = 0;
+
+    para (i = 1; i <= 5; i = i + 1) {
+        soma = soma + i;
+    }
+}
+
+5# switch
+inteiro principal() {
+    inteiro x = 2;
+    inteiro y = 0;
+
+    escolha (x) {
+        caso 1:
+            y = 10;
+            encerrar;
+        caso 2:
+            y = 20;
+            encerrar;
+        padrao:
+            y = -1;
+    }
+}
+
+6# continue
+inteiro principal() {
+    inteiro i;
+    inteiro soma;
+
+    soma = 0;
+
+    para (i = 0; i < 10; i = i + 1) {
+        se (i % 2 == 0) {
+            continue;
+        }
+        soma = soma + i;
+    }
+}
+
+7# string
+inteiro principal() {
+    palavra nome = "Cristyan";
+    palavra nome2 = "Pedro";
+    palavra nome3 = nome + nome2;
+}
+
+8# entrada e saída
+inteiro principal() {
+    inteiro a;
+    escrever("Digite um número:");
+    ler(a);
+    escrever("Você digitou:");
+    escrever(a);
+}
+
+9# exemplo geral
+inteiro principal() {
+    inteiro idade;
+    palavra nome;
+    inteiro i;
+
+    escrever("Digite seu nome: ");
+    ler(nome);
+
+    escrever("Digite sua idade: ");
+    ler(idade);
+
+    se (idade >= 18) {
+        escrever("Bem-vindo, ");
+        escrever(nome);
+        escrever("! Voce e maior de idade.\n");
+    } senao {
+        escrever("Desculpe, ");
+        escrever(nome);
+        escrever(", voce e menor de idade.\n");
+    }
+
+    escrever("Contando de 1 ate sua idade:\n");
+    para (i = 1; i <= idade; i = i + 1) {
+        escrever(i);
+        escrever(" ");
+    }
+
+    escrever("\nFim do programa.\n");
 }
