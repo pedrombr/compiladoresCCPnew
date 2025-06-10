@@ -75,14 +75,34 @@ string gerarotulo();
                         "#include <stdio.h>\n"
                         "#include <stdlib.h>\n\n";
 
-        codigo += "int tamanhoString(char* s) {\n"
-              "\tif (s == NULL) return 0;\n"
-              "\tint tam = 0;\n"
-              "\twhile (s[tam] != '\\0') {\n"
-              "\t\ttam++;\n"
-              "\t}\n"
-              "\treturn tam;\n"
-              "}\n\n";
+        string tamanhoString3end = "int tamanhoString(char* v0) {\n"
+            "\tint v1;\n"
+            "\tint t1, t2, t3, t4, t5, t7, t8, t9, t10, t11;\n"
+            "\tchar t6;\n\n"
+            "\tt1 = (v0 == NULL);\n"
+            "\tt2 = !t1;\n"
+            "\tif (t2) goto R0;\n\n"
+            "\tt3 = 0;\n"
+            "\treturn t3;\n\n"
+            "R0:\n"
+            "\tt4 = 0;\n"
+            "\tv1 = t4;\n\n"
+            "R1:\n"
+            "\tt5 = v1;\n"
+            "\tt6 = v0[t5];\n"
+            "\tt7 = (t6 != '\\0');\n"
+            "\tt8 = !t7;\n"
+            "\tif (t8) goto R2;\n\n"
+            "\tt9 = v1;\n"
+            "\tt10 = t9 + 1;\n"
+            "\tv1 = t10;\n"
+            "\tgoto R1;\n\n"
+            "R2:\n"
+            "\tt11 = v1;\n"
+            "\treturn t11;\n"
+            "}\n\n";
+
+        codigo += tamanhoString3end;
                         
         codigo += "int main(void) \n{\n";
 
