@@ -15,11 +15,14 @@ struct atributos {
     string label;
     string traducao;
     string tipoExp;
+    vector<atributos> listaArgs;
 };
 
 struct tab {
     string tipo;
     string elemento;
+    string categoria;  
+    vector<string> paramTipos;
 };
 
 int var_qnt = 0; 
@@ -36,10 +39,17 @@ stack<vector<pair<string, string>>> caseRotulos;
 stack<string> defaultRotulos;
 set<string> stringsAlocados;
 
+map<string, string> funcoesGeradas; 
+string funcaoAtual = "";
+map<string, tab> func_vars;
+
+
 int yylex(void);
 void yyerror(string);
 void adicionarVariavel(string nome, string tipo);
-tab buscarVariavel(string nome);
+void adicionarParametro(string nome, string tipo);
+void adicionarFuncao(string nome, string tipoRetorno, vector<string> tiposParams);
+tab buscarSimbolo(string nome);
 string gentempcode(string tipo);
 string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
@@ -58,6 +68,8 @@ string gerarotulo();
 %token TK_AND TK_OR 
 %token TK_IF TK_ELSE TK_DO TK_WHILE TK_FOR TK_SWITCH TK_BREAK TK_CONTINUE TK_STRING TK_STRING_VAL TK_CASE TK_DEFAULT
 %token TK_SCAN TK_PRINT
+%token TK_RETURN
+%token TK_TIPO_VOID
 
 
 %start S
@@ -68,7 +80,12 @@ string gerarotulo();
 
 %%
 
-    S : TK_TIPO_INT TK_MAIN '(' ')' BLOCO {
+    S : LISTA_FUNCOES {
+        // Verifica se a função 'main' foi definida
+        if (funcoesGeradas.find("principal") == funcoesGeradas.end()) {
+            yyerror("Erro Semantico: Funcao 'principal' nao definida.");
+        }
+
         string codigo = "/*Compilador CCP*/\n"
                         "#include <iostream>\n"
                         "#include <string.h>\n"
@@ -77,7 +94,7 @@ string gerarotulo();
 
         string tamanhoString3end = "int tamanhoString(char* v0) {\n"
             "\tint v1;\n"
-            "\tint t1, t2, t3, t4, t5, t7, t8, t9, t10, t11;\n"
+            "\tint t1;\n\tint t2;\n\tint t3;\n\tint t4;\n\tint t5;\n\tint t7;\n\tint t8;\n\tint t9;\n\tint t10;\n\tint t11;\n"
             "\tchar t6;\n\n"
             "\tt1 = (v0 == NULL);\n"
             "\tt2 = !t1;\n"
@@ -103,51 +120,125 @@ string gerarotulo();
             "}\n\n";
 
         codigo += tamanhoString3end;
-                        
-        codigo += "int main(void) \n{\n";
 
-        for (auto& par : tabelaGeracao) {
-            if (variaveisNome.count(par.second.elemento) || variaveisTempNome.count(par.second.elemento)) {
-                string tipo = par.second.tipo;
-                string nome = par.second.elemento;
-                string declaracao;
-
-                if (tipo == "string") {
-                    declaracao = "\tchar* " + nome + " = NULL;";
-                } else {
-                    declaracao = "\t" + tipo + " " + nome + ";";
-                }
-
-                if (variaveisNome.count(nome)) {
-                    declaracao += " // var " + par.first;
-                }
-                codigo += declaracao + "\n";
+        // Adiciona o código de todas as funções geradas
+        for (auto const& [nome, codigo_func] : funcoesGeradas) {
+            if (nome != "principal") {
+                codigo += codigo_func;
             }
         }
 
-        codigo += "\n";
-        codigo += $5.traducao;
-
-        string codigo_free = "\n";
-        for (const string& var_alocada : stringsAlocados) {
-            codigo_free += "\tfree(" + var_alocada + ");\n";
+        if (funcoesGeradas.count("principal")) {
+            codigo += funcoesGeradas.at("principal");
         }
-        codigo += codigo_free;
 
-        codigo += "\n\treturn 0;\n}";
         cout << codigo << endl;
     };
+
+    LISTA_FUNCOES
+        : DEFINICAO_FUNCAO LISTA_FUNCOES
+        | /* vazio */
+        ;
+
+    DEFINICAO_FUNCAO
+        : TIPO TK_ID '(' PARAMS ')' {
+        // Ação ANTES do bloco da função: registrar a função e preparar o escopo
+            funcaoAtual = $2.label;
+            vector<string> tiposParams;
+            for(const auto& p_attr : $4.listaArgs) {
+                tiposParams.push_back(p_attr.tipoExp);
+            }
+            adicionarFuncao(funcaoAtual, $1.tipoExp, tiposParams);
+
+            map<string, tab> novoEscopo;
+            pilhaDeSimbolos.push(novoEscopo);
+
+            func_vars.clear();
+
+        // Adiciona os parâmetros ao novo escopo e constrói a string de parâmetros em C
+            string params_c;
+            for(const auto& p_attr : $4.listaArgs) {
+                adicionarParametro(p_attr.label, p_attr.tipoExp);
+                if (!params_c.empty()) params_c += ", ";
+            // Usa o nome da variável gerado (v0, v1...)
+                params_c += p_attr.tipoExp + " " + buscarSimbolo(p_attr.label).elemento;
+            }
+
+        // Armazena a assinatura da função (ex: "int soma(int v0, int v1)") para uso posterior
+            if ($1.tipoExp == "int" && funcaoAtual == "principal") {
+                $$.label = "int main(void)"; // Assinatura padrão para main
+            } else {
+                $$.label = $1.tipoExp + " " + funcaoAtual + "(" + params_c + ")";
+            }
+        }
+        BLOCO {
+        // Ação DEPOIS do bloco da função: construir o código final da função
+            string nomeFuncao = funcaoAtual;
+
+        // Coleta declarações de todas as variáveis locais da função
+            string vars_locais = "";
+            for (auto const& [nome, info] : func_vars) {
+                if (info.tipo == "string") {
+        // Caso especial para o tipo string
+                    vars_locais += "\tchar* " + info.elemento + " = NULL;";
+                } else if (info.tipo != "void") {
+        // Lógica para todos os outros tipos
+                    vars_locais += "\t" + info.tipo + " " + info.elemento + ";";
+                }
+
+    // Adiciona o comentário se for uma variável do usuário
+                if (info.categoria == "var") {
+                    vars_locais += " // var " + nome;
+                }
+                vars_locais += "\n";
+            }
+
+        // Monta o código completo da função
+            string codigo_funcao = $6.label + "\n{\n" + vars_locais + "\n" + $7.traducao;
+
+        // Adiciona um 'return 0;' implícito para a main se não houver um
+            if (nomeFuncao == "principal" && codigo_funcao.find("return") == string::npos) {
+                codigo_funcao += "\n\treturn 0;\n";
+            }
+            codigo_funcao += "}\n\n";
+
+        // Armazena a função gerada no mapa global
+            funcoesGeradas[nomeFuncao] = codigo_funcao;
+
+            pilhaDeSimbolos.pop();
+            funcaoAtual = ""; // Reseta a função atual
+        };
+
+    PARAMS
+        : LISTA_PARAMS { $$ = $1; }
+        | /* vazio */  { $$.listaArgs.clear(); }
+        ;
+
+    LISTA_PARAMS
+        : PARAM { $$.listaArgs.push_back($1); }
+        | LISTA_PARAMS ',' PARAM {
+            $$.listaArgs = $1.listaArgs;
+            $$.listaArgs.push_back($3);
+        }
+        ;
+
+    PARAM
+        : TIPO TK_ID {
+            $$.label = $2.label;
+            $$.tipoExp = $1.tipoExp;
+        }
+        ;
+
     
     BLOCO : '{' 
     
             {
                 map<string, tab> novoEscopo;
                 pilhaDeSimbolos.push(novoEscopo);
-
+                
             }
             COMANDOS '}' 
             {
-            
                 pilhaDeSimbolos.pop();
                 $$.traducao = $3.traducao;
     };
@@ -172,7 +263,7 @@ string gerarotulo();
         | TIPO TK_ID '=' E ';' {
             adicionarVariavel($2.label, $1.label);
         
-            tab infoVar = buscarVariavel($2.label);
+            tab infoVar = buscarSimbolo($2.label);
             string nomeMem = infoVar.elemento;
             string tipoVar = infoVar.tipo;
        
@@ -358,7 +449,7 @@ string gerarotulo();
             $$.traducao = $3.traducao + "\tprintf(" + formato + ", " + $3.label + ");\n";
         }
         | TK_SCAN '(' TK_ID ')' ';' {  
-            tab infoVar = buscarVariavel($3.label);
+            tab infoVar = buscarSimbolo($3.label);
             string formato;
             string endereco = "&" + infoVar.elemento;
         
@@ -375,6 +466,31 @@ string gerarotulo();
                 $$.traducao = "\tscanf(" + formato + ", " + endereco + ");\n";
             }
         }
+        | TK_RETURN E ';' {
+            if (funcaoAtual.empty()) {
+                yyerror("Erro Semantico: 'return' fora de uma funcao.");
+            }
+        // -- MODIFICADO --: Usa buscarSimbolo
+            tab infoFuncao = buscarSimbolo(funcaoAtual);
+        // Uma verificação de tipo simples
+            if (infoFuncao.tipo != $2.tipoExp && !(infoFuncao.tipo == "float" && $2.tipoExp == "int")) {
+                yyerror("Erro Semantico: Tipo de retorno (" + $2.tipoExp + ") incompativel com o tipo da funcao (" + infoFuncao.tipo + ") '" + funcaoAtual + "'.");
+            }
+            $$.traducao = $2.traducao + "\treturn " + $2.label + ";\n";
+        }
+        | TK_RETURN ';' { // Return para funções void
+            if (funcaoAtual.empty()) {
+                yyerror("Erro Semantico: 'return' fora de uma funcao.");
+            }
+        // -- MODIFICADO --: Usa buscarSimbolo
+            tab infoFuncao = buscarSimbolo(funcaoAtual);
+            if (infoFuncao.tipo != "void") {
+                yyerror("Erro Semantico: 'return' sem valor em funcao que nao e void.");
+            }
+            $$.traducao = "\treturn;\n";
+        }
+        ;
+
         | INICIO_SWITCH BLOCO_CASES {
            
             string codigo_saltos = "";
@@ -466,6 +582,8 @@ string gerarotulo();
         | TK_TIPO_CHAR    { $$.label = "char"; $$.tipoExp = "char"; }
         | TK_TIPO_BOOLEAN { $$.label = "bool"; $$.tipoExp = "bool"; }
         | TK_STRING       { $$.label = "string"; $$.tipoExp = "string"; };
+        | TK_TIPO_VOID    { $$.label = "void";   $$.tipoExp = "void";   }
+
     
     E_OPC
         : E { $$ = $1; }
@@ -626,18 +744,15 @@ string gerarotulo();
         }
         | TK_STRING_VAL {
             $$.tipoExp = "string";
-            string temp_literal_ptr = gentempcode("string"); 
             string temp_str_heap = gentempcode("string");  
             string temp_len = gentempcode("int");
             string temp_size = gentempcode("int");
 
-            $$.traducao  = "\t" + temp_literal_ptr + " = " + $1.label + ";\n";
-
-            $$.traducao += "\t" + temp_len + " = tamanhoString(" + temp_literal_ptr + ");\n";
+            $$.traducao += "\t" + temp_len + " = tamanhoString(" + $1.label + ");\n";
 
             $$.traducao += "\t" + temp_size + " = " + temp_len + " + 1;\n";
             $$.traducao += "\t" + temp_str_heap + " = (char*) malloc(" + temp_size + ");\n";
-            $$.traducao += "\tstrcpy(" + temp_str_heap + ", " + temp_literal_ptr + ");\n";
+            $$.traducao += "\tstrcpy(" + temp_str_heap + ", " + $1.label + ");\n";
             stringsAlocados.insert(temp_str_heap);
 
             $$.label = temp_str_heap;
@@ -655,7 +770,7 @@ string gerarotulo();
 
         | TK_ID '=' E {
             string nomeVar = $1.label;
-            tab infoVar = buscarVariavel(nomeVar);
+            tab infoVar = buscarSimbolo(nomeVar);
             string nomeMem = infoVar.elemento;    
             string tipoVar = infoVar.tipo;
             string tipoExpr = $3.tipoExp;
@@ -689,7 +804,7 @@ string gerarotulo();
             $$.tipoExp = "int";
         }
         | TK_ID {
-            tab infoVar = buscarVariavel($1.label);
+            tab infoVar = buscarSimbolo($1.label);
             if (infoVar.tipo == "string") {
                 $$.label = infoVar.elemento; 
                 $$.traducao = "";              
@@ -711,9 +826,61 @@ string gerarotulo();
             $$.label = convertido;
             $$.traducao = $4.traducao + codConv;
             $$.tipoExp = tipoDest;
-
-            
         }
+        | TK_ID '(' ARGS ')' {
+            string nomeFunc = $1.label;
+            tab infoFunc = buscarSimbolo(nomeFunc);
+
+            if(infoFunc.categoria != "funcao") {
+                yyerror("Erro Semantico: '" + nomeFunc + "' nao e uma funcao.");
+            }
+            if(infoFunc.paramTipos.size() != $3.listaArgs.size()) {
+                yyerror("Erro Semantico: Numero incorreto de argumentos para a funcao '" + nomeFunc + "'.");
+            }
+
+        // Verificação de tipo de argumento e montagem do código
+            string codigo_args = "";
+            string args_c = "";
+            for(size_t i = 0; i < $3.listaArgs.size(); ++i) {
+            // Checagem de tipo (simplificada)
+                if ($3.listaArgs[i].tipoExp != infoFunc.paramTipos[i]) {
+                    cout << "Warning: Incompatibilidade de tipo no argumento " << i+1 << " da funcao '" << nomeFunc << "'." << endl;
+                }
+                if (i > 0) args_c += ", ";
+                codigo_args += $3.listaArgs[i].traducao;
+                args_c += $3.listaArgs[i].label;
+            }
+
+            $$.traducao = codigo_args;
+            $$.tipoExp = infoFunc.tipo;
+            if ($$.tipoExp != "void") {
+                $$.label = gentempcode($$.tipoExp);
+                $$.traducao += "\t" + $$.label + " = " + nomeFunc + "(" + args_c + ");\n";
+            } else {
+                $$.label = ""; // Funções void não têm valor de retorno
+                $$.traducao += "\t" + nomeFunc + "(" + args_c + ");\n";
+            }
+        }
+        ;
+
+// -- NOVAS REGRAS PARA LISTA DE ARGUMENTOS EM CHAMADAS DE FUNÇÃO --
+    ARGS
+        : LISTA_ARGS { $$ = $1; }
+        | /* vazio */ { $$.listaArgs.clear(); $$.traducao = "";}
+        ;
+
+    LISTA_ARGS
+        : E {
+            $$.listaArgs.push_back($1);
+            $$.traducao = $1.traducao;
+        }
+        | LISTA_ARGS ',' E {
+            $$.listaArgs = $1.listaArgs;
+            $$.listaArgs.push_back($3);
+        // Junta a tradução (código para calcular) de todos os argumentos
+            $$.traducao = $1.traducao + $3.traducao;
+        }
+    ;
 
 %%
 
@@ -729,13 +896,34 @@ void adicionarVariavel(string nome, string tipo) {
     }
     
     string nomeMem = "v" + to_string(var_qnt++);
-    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem };
-    tabelaGeracao[nome] = { tipo, nomeMem };
+    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var" };
+    tabelaGeracao[nome] = { tipo, nomeMem, "var" };
     variaveisNome.insert(nomeMem);
     
+    if (!funcaoAtual.empty()) func_vars[nome] = { tipo, nomeMem, "var" };
 }
 
-tab buscarVariavel(string nome) {
+void adicionarFuncao(string nome, string tipoRetorno, vector<string> tiposParams) {
+    if (pilhaDeSimbolos.top().count(nome)) {
+        yyerror("Erro Semantico: Simbolo '" + nome + "' ja foi declarado neste escopo.");
+        return;
+    }
+    pilhaDeSimbolos.top()[nome] = { tipoRetorno, nome, "funcao", tiposParams };
+}
+
+void adicionarParametro(string nome, string tipo) {
+    if (pilhaDeSimbolos.top().count(nome)) {
+        yyerror("Erro: Parametro '" + nome + "' ja foi declarado.");
+        return;
+    }
+    
+    string nomeMem = "v" + to_string(var_qnt++);
+    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var" };
+    tabelaGeracao[nome] = { tipo, nomeMem, "var" };
+    variaveisNome.insert(nomeMem);
+}
+
+tab buscarSimbolo(string nome) {
    
     stack<map<string, tab>> tempStack = pilhaDeSimbolos;
     
@@ -750,7 +938,7 @@ tab buscarVariavel(string nome) {
     
   
     yyerror("Erro Semantico: Variavel '" + nome + "' nao foi declarada.");
-    return {"error", "error"}; 
+    return {"error", "error", "error"}; 
 }
 
 string gentempcode(string tipo) {
@@ -759,6 +947,7 @@ string gentempcode(string tipo) {
         if (!tabelaGeracao.count(nomeTemp)) { 
             variaveisTempNome.insert(nomeTemp);
             tabelaGeracao[nomeTemp] = { tipo, nomeTemp };
+            if (!funcaoAtual.empty()) func_vars[nomeTemp] = { tipo, nomeTemp, "temp" };
             return nomeTemp;
         }
     }
@@ -771,6 +960,7 @@ string gentempcode2(string tipo) {
         if (!tabelaGeracao.count(nomeTemp)) {
             variaveisTempNome.insert(nomeTemp);
             tabelaGeracao[nomeTemp] = { tipo, nomeTemp };
+            if (!funcaoAtual.empty()) func_vars[nomeTemp] = { tipo, nomeTemp, "temp" };
             return nomeTemp;
         }
     }
