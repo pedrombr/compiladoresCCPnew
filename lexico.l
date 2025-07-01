@@ -53,6 +53,8 @@ ID {LETRA}({LETRA}|{NUM})*
 "-="           { return TK_MENOS_IGUAL; }
 "*="           { return TK_MULT_IGUAL; }
 "/="           { return TK_DIV_IGUAL; }
+"++"           { return TK_INCREMENTO; }
+"--"           { return TK_DECREMENTO; }
 {NUM}          { yylval.label = yytext; return TK_NUM; }
 {ID}           { yylval.label = yytext; return TK_ID; }
 {REAL}         { yylval.label = yytext; return TK_FLOAT_VAL; }
