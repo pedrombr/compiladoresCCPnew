@@ -15,7 +15,7 @@ ID {LETRA}({LETRA}|{NUM})*
 
 "\n"           {}
 {DELIM}        {}
-"principal"    { return TK_MAIN; }
+"principal"    { yylval.label = "principal"; return TK_ID; }
 "inteiro"      { return TK_TIPO_INT; }
 "flutuante"    { return TK_TIPO_FLOAT; }
 "caractere"    { return TK_TIPO_CHAR; }
@@ -35,6 +35,8 @@ ID {LETRA}({LETRA}|{NUM})*
 "padrao"       { return TK_DEFAULT; }
 "ler"          { return TK_SCAN; }
 "escrever"     { return TK_PRINT; }
+"retornar"     { return TK_RETURN; }
+"vazio"        { return TK_TIPO_VOID; }
 [(){}[\];:,]   { return *yytext; }
 [+\-*/]        { return *yytext; }
 "<"            { return '<'; }
