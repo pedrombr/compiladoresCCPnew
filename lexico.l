@@ -49,6 +49,10 @@ ID {LETRA}({LETRA}|{NUM})*
 "&&"           { return TK_AND; }
 "||"           { return TK_OR; }
 "!"            { return '!'; }
+"+="           { return TK_MAIS_IGUAL; }
+"-="           { return TK_MENOS_IGUAL; }
+"*="           { return TK_MULT_IGUAL; }
+"/="           { return TK_DIV_IGUAL; }
 {NUM}          { yylval.label = yytext; return TK_NUM; }
 {ID}           { yylval.label = yytext; return TK_ID; }
 {REAL}         { yylval.label = yytext; return TK_FLOAT_VAL; }
