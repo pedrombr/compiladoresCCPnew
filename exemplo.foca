@@ -1,14 +1,6 @@
-inteiro principal () {
-    inteiro a;
-    flutuante b;
-    flutuante c;
-    caractere d;
-    booleano resultado;
-
-    a = 10;
-    b = 20.5;
-    c = a + b;
-    d = 'D';
-
-    resultado = (a < b) && !(a == 10);
+inteiro principal() {
+    inteiro notas[4];
+    notas[1] = 10;
+    escrever(notas[1]);
+    retornar 0;
 }
