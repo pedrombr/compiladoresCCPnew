@@ -13,6 +13,8 @@ ID {LETRA}({LETRA}|{NUM})*
 
 %%
 
+"//".* { }
+"/*"(.|\n)*?"*/" { }
 "\n"           {}
 {DELIM}        {}
 "principal"    { yylval.label = "principal"; return TK_ID; }
@@ -37,6 +39,7 @@ ID {LETRA}({LETRA}|{NUM})*
 "escrever"     { return TK_PRINT; }
 "retornar"     { return TK_RETURN; }
 "vazio"        { return TK_TIPO_VOID; }
+"enumeracao"   { return TK_ENUM; }
 [(){}[\];:,]   { return *yytext; }
 [+\-*/]        { return *yytext; }
 "<"            { return '<'; }
