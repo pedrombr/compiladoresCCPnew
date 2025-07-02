@@ -16,6 +16,7 @@ struct atributos {
     string traducao;
     string tipoExp;
     vector<atributos> listaArgs;
+    vector<int> listaDimensoes;
 };
 
 struct tab {
@@ -23,6 +24,7 @@ struct tab {
     string elemento;
     string categoria;  
     vector<string> paramTipos;
+    vector<int> dimensoes;
 };
 
 int var_qnt = 0; 
@@ -46,7 +48,7 @@ map<string, tab> func_vars;
 
 int yylex(void);
 void yyerror(string);
-void adicionarVariavel(string nome, string tipo);
+void adicionarVariavel(string nome, string tipo, const vector<int>& dimensoes);
 void adicionarParametro(string nome, string tipo);
 void adicionarFuncao(string nome, string tipoRetorno, vector<string> tiposParams);
 tab buscarSimbolo(string nome);
@@ -55,6 +57,7 @@ string gentempcode2(string tipo);
 string tipoResult(string tipo1, string tipo2);
 string conversao(string var, string tipoOrigem, string tipoDest, string &codigo);
 string gerarotulo();
+
 
 %}
 
@@ -70,10 +73,12 @@ string gerarotulo();
 %token TK_SCAN TK_PRINT
 %token TK_RETURN
 %token TK_TIPO_VOID
+%token TK_MAIS_IGUAL TK_MENOS_IGUAL TK_MULT_IGUAL TK_DIV_IGUAL
+%token TK_INCREMENTO TK_DECREMENTO
 
 
 %start S
-%right UMINUS
+%right UMINUS TK_INCREMENTO TK_DECREMENTO
 %left '+' '-'
 %left '*' '/'
 %right '(' ')'
@@ -81,7 +86,7 @@ string gerarotulo();
 %%
 
     S : LISTA_FUNCOES {
-        // Verifica se a função 'main' foi definida
+        
         if (funcoesGeradas.find("principal") == funcoesGeradas.end()) {
             yyerror("Erro Semantico: Funcao 'principal' nao definida.");
         }
@@ -121,7 +126,6 @@ string gerarotulo();
 
         codigo += tamanhoString3end;
 
-        // Adiciona o código de todas as funções geradas
         for (auto const& [nome, codigo_func] : funcoesGeradas) {
             if (nome != "principal") {
                 codigo += codigo_func;
@@ -137,12 +141,11 @@ string gerarotulo();
 
     LISTA_FUNCOES
         : DEFINICAO_FUNCAO LISTA_FUNCOES
-        | /* vazio */
+        | 
         ;
 
     DEFINICAO_FUNCAO
         : TIPO TK_ID '(' PARAMS ')' {
-        // Ação ANTES do bloco da função: registrar a função e preparar o escopo
             funcaoAtual = $2.label;
             vector<string> tiposParams;
             for(const auto& p_attr : $4.listaArgs) {
@@ -155,63 +158,58 @@ string gerarotulo();
 
             func_vars.clear();
 
-        // Adiciona os parâmetros ao novo escopo e constrói a string de parâmetros em C
             string params_c;
             for(const auto& p_attr : $4.listaArgs) {
                 adicionarParametro(p_attr.label, p_attr.tipoExp);
                 if (!params_c.empty()) params_c += ", ";
-            // Usa o nome da variável gerado (v0, v1...)
                 params_c += p_attr.tipoExp + " " + buscarSimbolo(p_attr.label).elemento;
             }
 
-        // Armazena a assinatura da função (ex: "int soma(int v0, int v1)") para uso posterior
             if ($1.tipoExp == "int" && funcaoAtual == "principal") {
-                $$.label = "int main(void)"; // Assinatura padrão para main
+                $$.label = "int main(void)"; 
             } else {
                 $$.label = $1.tipoExp + " " + funcaoAtual + "(" + params_c + ")";
             }
         }
         BLOCO {
-        // Ação DEPOIS do bloco da função: construir o código final da função
             string nomeFuncao = funcaoAtual;
 
-        // Coleta declarações de todas as variáveis locais da função
             string vars_locais = "";
             for (auto const& [nome, info] : func_vars) {
-                if (info.tipo == "string") {
-        // Caso especial para o tipo string
+                 if (!info.dimensoes.empty()) { 
+                    int tamanho_total = 1;
+                    for (int d : info.dimensoes) {
+                        tamanho_total *= d;
+                    }
+                    vars_locais += "\t" + info.tipo + " " + info.elemento + "[" + to_string(tamanho_total) + "];";
+                } else if (info.tipo == "string") {
                     vars_locais += "\tchar* " + info.elemento + " = NULL;";
                 } else if (info.tipo != "void") {
-        // Lógica para todos os outros tipos
                     vars_locais += "\t" + info.tipo + " " + info.elemento + ";";
                 }
 
-    // Adiciona o comentário se for uma variável do usuário
                 if (info.categoria == "var") {
                     vars_locais += " // var " + nome;
                 }
                 vars_locais += "\n";
             }
 
-        // Monta o código completo da função
             string codigo_funcao = $6.label + "\n{\n" + vars_locais + "\n" + $7.traducao;
 
-        // Adiciona um 'return 0;' implícito para a main se não houver um
             if (nomeFuncao == "principal" && codigo_funcao.find("return") == string::npos) {
                 codigo_funcao += "\n\treturn 0;\n";
             }
             codigo_funcao += "}\n\n";
 
-        // Armazena a função gerada no mapa global
             funcoesGeradas[nomeFuncao] = codigo_funcao;
 
             pilhaDeSimbolos.pop();
-            funcaoAtual = ""; // Reseta a função atual
+            funcaoAtual = ""; 
         };
 
     PARAMS
         : LISTA_PARAMS { $$ = $1; }
-        | /* vazio */  { $$.listaArgs.clear(); }
+        | { $$.listaArgs.clear(); }
         ;
 
     LISTA_PARAMS
@@ -257,11 +255,42 @@ string gerarotulo();
             $$ = $1;
         }
         | TIPO TK_ID ';' {
-            adicionarVariavel($2.label, $1.label);
+            adicionarVariavel($2.label, $1.tipoExp, {});
             $$.traducao = ""; 
         }
+        | TIPO TK_ID LISTA_DIMENSOES ';' {
+            for(int d : $3.listaDimensoes) {
+                if (d <= 0) yyerror("Erro Semantico: Dimensao da matriz deve ser positiva.");
+            }
+            adicionarVariavel($2.label, $1.tipoExp, $3.listaDimensoes);
+            $$.traducao = "";
+        }
+        | TIPO TK_ID '[' TK_NUM ']' '=' '{' LISTA_VALORES '}' ';' {
+            string nomeVar = $2.label;
+            string tipoVar = $1.tipoExp;
+            int tamanho = stoi($4.label);
+
+            if (tamanho != $8.listaArgs.size()) {
+                yyerror("Erro Semantico: O numero de inicializadores nao corresponde ao tamanho da matriz '" + nomeVar + "'.");
+            }
+
+            adicionarVariavel(nomeVar, tipoVar, {tamanho});
+            tab infoVar = buscarSimbolo(nomeVar);
+            string nomeMem = infoVar.elemento;
+
+            string codigo_inicializacao = $8.traducao; 
+            for (int i = 0; i < tamanho; ++i) {
+                atributos arg = $8.listaArgs[i];
+                if (arg.tipoExp != tipoVar) {
+                    cout << "Warning: Tipo do inicializador " << i << " incompátivel com o tipo da matriz " << nomeVar << endl;
+                }
+                codigo_inicializacao += "\t" + nomeMem + "[" + to_string(i) + "] = " + arg.label + ";\n";
+            }
+            $$.traducao = codigo_inicializacao;
+        }
+
         | TIPO TK_ID '=' E ';' {
-            adicionarVariavel($2.label, $1.label);
+            adicionarVariavel($2.label, $1.tipoExp, {});
         
             tab infoVar = buscarSimbolo($2.label);
             string nomeMem = infoVar.elemento;
@@ -470,19 +499,16 @@ string gerarotulo();
             if (funcaoAtual.empty()) {
                 yyerror("Erro Semantico: 'return' fora de uma funcao.");
             }
-        // -- MODIFICADO --: Usa buscarSimbolo
             tab infoFuncao = buscarSimbolo(funcaoAtual);
-        // Uma verificação de tipo simples
             if (infoFuncao.tipo != $2.tipoExp && !(infoFuncao.tipo == "float" && $2.tipoExp == "int")) {
                 yyerror("Erro Semantico: Tipo de retorno (" + $2.tipoExp + ") incompativel com o tipo da funcao (" + infoFuncao.tipo + ") '" + funcaoAtual + "'.");
             }
             $$.traducao = $2.traducao + "\treturn " + $2.label + ";\n";
         }
-        | TK_RETURN ';' { // Return para funções void
+        | TK_RETURN ';' { 
             if (funcaoAtual.empty()) {
                 yyerror("Erro Semantico: 'return' fora de uma funcao.");
             }
-        // -- MODIFICADO --: Usa buscarSimbolo
             tab infoFuncao = buscarSimbolo(funcaoAtual);
             if (infoFuncao.tipo != "void") {
                 yyerror("Erro Semantico: 'return' sem valor em funcao que nao e void.");
@@ -767,7 +793,6 @@ string gerarotulo();
        		$$.traducao = "\t" + $$.label + " = 0;\n";
             $$.tipoExp = "bool";
         }
-
         | TK_ID '=' E {
             string nomeVar = $1.label;
             tab infoVar = buscarSimbolo(nomeVar);
@@ -798,6 +823,171 @@ string gerarotulo();
                 $$.label = "";
             }
         }
+        | ACESSO_MATRIZ '=' E {
+            if ($1.tipoExp != $3.tipoExp) {
+                cout << "Warning: Tipos incompativeis na atribuicao de matriz!" << endl;
+            }
+
+            $$.traducao = $1.traducao + $3.traducao + "\t" + $1.label + " = " + $3.label + ";\n";
+            $$.tipoExp = ""; 
+            $$.label = "";   
+        }
+
+        | TK_ID TK_MAIS_IGUAL E {
+            tab infoVar = buscarSimbolo($1.label);
+            string nomeMem = infoVar.elemento;
+            string tipoVar = infoVar.tipo;
+            string tipoExpr = $3.tipoExp;
+
+            if (tipoVar == "string" || tipoVar == "bool") {
+                yyerror("Erro Semantico: Operador '+=' invalido para o tipo " + tipoVar);
+            }
+
+            string tipoTemp = tipoResult(tipoVar, tipoExpr);
+            string codConv = "";
+            string exprConvertida = conversao($3.label, tipoExpr, tipoTemp, codConv);
+        
+            string temp_result = gentempcode(tipoTemp); 
+
+            $$.traducao = $3.traducao + codConv; 
+            $$.traducao += "\t" + temp_result + " = " + nomeMem + " + " + exprConvertida + ";\n"; 
+            $$.traducao += "\t" + nomeMem + " = " + temp_result + ";\n"; 
+        
+            $$.label = nomeMem;
+            $$.tipoExp = tipoVar;
+        }
+        | TK_ID TK_MENOS_IGUAL E {
+            tab infoVar = buscarSimbolo($1.label);
+            string nomeMem = infoVar.elemento;
+            string tipoVar = infoVar.tipo;
+            string tipoExpr = $3.tipoExp;
+
+            if (tipoVar == "string" || tipoVar == "bool") {
+                yyerror("Erro Semantico: Operador '-=' invalido para o tipo " + tipoVar);
+            }
+
+            string tipoTemp = tipoResult(tipoVar, tipoExpr);
+            string codConv = "";
+            string exprConvertida = conversao($3.label, tipoExpr, tipoTemp, codConv);
+
+            string temp_result = gentempcode(tipoTemp); 
+
+            $$.traducao = $3.traducao + codConv;
+            $$.traducao += "\t" + temp_result + " = " + nomeMem + " - " + exprConvertida + ";\n";
+            $$.traducao += "\t" + nomeMem + " = " + temp_result + ";\n";
+        
+            $$.label = nomeMem;
+            $$.tipoExp = tipoVar;
+        }
+        | TK_ID TK_MULT_IGUAL E {
+            tab infoVar = buscarSimbolo($1.label);
+            string nomeMem = infoVar.elemento;
+            string tipoVar = infoVar.tipo;
+            string tipoExpr = $3.tipoExp;
+
+            if (tipoVar == "string" || tipoVar == "bool") {
+                yyerror("Erro Semantico: Operador '*=' invalido para o tipo " + tipoVar);
+            }
+
+            string tipoTemp = tipoResult(tipoVar, tipoExpr);
+            string codConv = "";
+            string exprConvertida = conversao($3.label, tipoExpr, tipoTemp, codConv);
+
+            string temp_result = gentempcode(tipoTemp); 
+
+            $$.traducao = $3.traducao + codConv;
+            $$.traducao += "\t" + temp_result + " = " + nomeMem + " * " + exprConvertida + ";\n";
+            $$.traducao += "\t" + nomeMem + " = " + temp_result + ";\n";
+        
+            $$.label = nomeMem;
+            $$.tipoExp = tipoVar;
+        }
+        | TK_ID TK_DIV_IGUAL E {
+            tab infoVar = buscarSimbolo($1.label);
+            string nomeMem = infoVar.elemento;
+            string tipoVar = infoVar.tipo;
+            string tipoExpr = $3.tipoExp;
+
+            if (tipoVar == "string" || tipoVar == "bool") {
+                yyerror("Erro Semantico: Operador '/=' invalido para o tipo " + tipoVar);
+            }
+
+            string tipoTemp = tipoResult(tipoVar, tipoExpr);
+            string codConv = "";
+            string exprConvertida = conversao($3.label, tipoExpr, tipoTemp, codConv);
+
+            string temp_result = gentempcode(tipoTemp); 
+
+            $$.traducao = $3.traducao + codConv;
+            $$.traducao += "\t" + temp_result + " = " + nomeMem + " / " + exprConvertida + ";\n";
+            $$.traducao += "\t" + nomeMem + " = " + temp_result + ";\n";
+        
+            $$.label = nomeMem;
+            $$.tipoExp = tipoVar;
+        }
+        | TK_ID TK_INCREMENTO {
+            tab infoVar = buscarSimbolo($1.label);
+            if (infoVar.tipo != "int" && infoVar.tipo != "float") {
+                yyerror("Erro Semantico: Operador '++' so pode ser aplicado a tipos numericos.");
+            }
+            string nomeMem = infoVar.elemento;
+
+            string temp_antigo = gentempcode(infoVar.tipo);
+            $$.traducao = "\t" + temp_antigo + " = " + nomeMem + ";\n";
+
+            string temp_um = gentempcode(infoVar.tipo);
+            $$.traducao += "\t" + temp_um + " = 1;\n";
+            $$.traducao += "\t" + nomeMem + " = " + temp_antigo + " + " + temp_um + ";\n";
+        
+            $$.label = temp_antigo;
+            $$.tipoExp = infoVar.tipo;
+        }
+        | TK_ID TK_DECREMENTO {
+            tab infoVar = buscarSimbolo($1.label);
+            if (infoVar.tipo != "int" && infoVar.tipo != "float") {
+                yyerror("Erro Semantico: Operador '--' so pode ser aplicado a tipos numericos.");
+            }
+            string nomeMem = infoVar.elemento;
+
+            string temp_antigo = gentempcode(infoVar.tipo);
+            $$.traducao = "\t" + temp_antigo + " = " + nomeMem + ";\n";
+
+            string temp_um = gentempcode(infoVar.tipo);
+            $$.traducao += "\t" + temp_um + " = 1;\n";
+            $$.traducao += "\t" + nomeMem + " = " + temp_antigo + " - " + temp_um + ";\n";
+        
+            $$.label = temp_antigo;
+            $$.tipoExp = infoVar.tipo;
+        }
+        | TK_INCREMENTO TK_ID {
+            tab infoVar = buscarSimbolo($2.label);
+            if (infoVar.tipo != "int" && infoVar.tipo != "float") {
+                yyerror("Erro Semantico: Operador '++' so pode ser aplicado a tipos numericos.");
+            }
+            string nomeMem = infoVar.elemento;
+        
+            string temp_um = gentempcode(infoVar.tipo);
+            $$.traducao = "\t" + temp_um + " = 1;\n";
+            $$.traducao += "\t" + nomeMem + " = " + nomeMem + " + " + temp_um + ";\n";
+
+            $$.label = nomeMem;
+            $$.tipoExp = infoVar.tipo;
+        }
+        | TK_DECREMENTO TK_ID {
+            tab infoVar = buscarSimbolo($2.label);
+            if (infoVar.tipo != "int" && infoVar.tipo != "float") {
+                yyerror("Erro Semantico: Operador '--' so pode ser aplicado a tipos numericos.");
+            }
+            string nomeMem = infoVar.elemento;
+
+            string temp_um = gentempcode(infoVar.tipo);
+            $$.traducao = "\t" + temp_um + " = 1;\n";
+            $$.traducao += "\t" + nomeMem + " = " + nomeMem + " - " + temp_um + ";\n";
+        
+            $$.label = nomeMem;
+            $$.tipoExp = infoVar.tipo;
+        }
+        | ACESSO_MATRIZ { $$ = $1; }
         | TK_NUM {
             $$.label = gentempcode("int");
             $$.traducao = "\t" + $$.label + " = " + $1.label + ";\n";
@@ -838,11 +1028,9 @@ string gerarotulo();
                 yyerror("Erro Semantico: Numero incorreto de argumentos para a funcao '" + nomeFunc + "'.");
             }
 
-        // Verificação de tipo de argumento e montagem do código
             string codigo_args = "";
             string args_c = "";
             for(size_t i = 0; i < $3.listaArgs.size(); ++i) {
-            // Checagem de tipo (simplificada)
                 if ($3.listaArgs[i].tipoExp != infoFunc.paramTipos[i]) {
                     cout << "Warning: Incompatibilidade de tipo no argumento " << i+1 << " da funcao '" << nomeFunc << "'." << endl;
                 }
@@ -857,16 +1045,53 @@ string gerarotulo();
                 $$.label = gentempcode($$.tipoExp);
                 $$.traducao += "\t" + $$.label + " = " + nomeFunc + "(" + args_c + ");\n";
             } else {
-                $$.label = ""; // Funções void não têm valor de retorno
+                $$.label = ""; 
                 $$.traducao += "\t" + nomeFunc + "(" + args_c + ");\n";
             }
         }
         ;
+    ACESSO_MATRIZ
+        : TK_ID LISTA_INDICES {
+            tab infoVar = buscarSimbolo($1.label);
+            if (infoVar.dimensoes.empty()) {
+                yyerror("Erro Semantico: Variavel '" + $1.label + "' nao e uma matriz.");
+            }
+            if (infoVar.dimensoes.size() != $2.listaArgs.size()) {
+                yyerror("Erro Semantico: Numero incorreto de indices para a matriz '" + $1.label + "'.");
+            }
 
-// -- NOVAS REGRAS PARA LISTA DE ARGUMENTOS EM CHAMADAS DE FUNÇÃO --
+            string nomeMem = infoVar.elemento;
+            $$.traducao = $2.traducao; 
+            $$.tipoExp = infoVar.tipo;
+
+            if ($2.listaArgs.size() == 1) { 
+                $$.label = nomeMem + "[" + $2.listaArgs[0].label + "]";
+            } else { 
+                if ($2.listaArgs.size() == 2) {
+                    string i = $2.listaArgs[0].label; 
+                    string j = $2.listaArgs[1].label; 
+                    int num_colunas = infoVar.dimensoes[1];
+
+                    string temp_num_cols = gentempcode("int");
+                    $$.traducao += "\t" + temp_num_cols + " = " + to_string(num_colunas) + ";\n";
+
+                    string temp_mult = gentempcode("int");
+                    $$.traducao += "\t" + temp_mult + " = " + i + " * " + temp_num_cols + ";\n";
+                
+                    string temp_final_index = gentempcode("int");
+                    $$.traducao += "\t" + temp_final_index + " = " + temp_mult + " + " + j + ";\n";
+                
+                    $$.label = nomeMem + "[" + temp_final_index + "]";
+                } else {
+                    yyerror("Erro: Compilador so suporta matrizes 1D e 2D no momento.");
+                }
+            }
+        }
+    ;
+
     ARGS
         : LISTA_ARGS { $$ = $1; }
-        | /* vazio */ { $$.listaArgs.clear(); $$.traducao = "";}
+        | { $$.listaArgs.clear(); $$.traducao = "";}
         ;
 
     LISTA_ARGS
@@ -877,7 +1102,37 @@ string gerarotulo();
         | LISTA_ARGS ',' E {
             $$.listaArgs = $1.listaArgs;
             $$.listaArgs.push_back($3);
-        // Junta a tradução (código para calcular) de todos os argumentos
+            $$.traducao = $1.traducao + $3.traducao;
+        }
+    ;
+    LISTA_VALORES
+        : E {
+            $$.listaArgs.push_back($1);
+            $$.traducao = $1.traducao;
+        }
+        |  LISTA_VALORES ',' E {
+            $$.listaArgs = $1.listaArgs;
+            $$.listaArgs.push_back($3);
+            $$.traducao = $1.traducao + $3.traducao;
+        }
+    ;
+    LISTA_DIMENSOES
+        : '[' TK_NUM ']' {
+            $$.listaDimensoes.push_back(stoi($2.label));
+        }
+        | LISTA_DIMENSOES '[' TK_NUM ']' {
+            $$.listaDimensoes = $1.listaDimensoes;
+            $$.listaDimensoes.push_back(stoi($3.label));
+        }
+    ;
+    LISTA_INDICES
+        : '[' E ']' {
+            $$.listaArgs.push_back($2); 
+            $$.traducao = $2.traducao; 
+        }
+        | LISTA_INDICES '[' E ']' {
+            $$.listaArgs = $1.listaArgs;
+            $$.listaArgs.push_back($3);
             $$.traducao = $1.traducao + $3.traducao;
         }
     ;
@@ -888,7 +1143,7 @@ string gerarotulo();
 
 int yyparse();
 
-void adicionarVariavel(string nome, string tipo) {
+void adicionarVariavel(string nome, string tipo, const vector<int>& dimensoes) {
     
     if (pilhaDeSimbolos.top().count(nome)) {
         yyerror("Erro: A variavel '" + nome + "' ja foi declarada.");
@@ -896,11 +1151,11 @@ void adicionarVariavel(string nome, string tipo) {
     }
     
     string nomeMem = "v" + to_string(var_qnt++);
-    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var" };
-    tabelaGeracao[nome] = { tipo, nomeMem, "var" };
+    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var", {}, dimensoes };
+    tabelaGeracao[nome] = { tipo, nomeMem, "var", {}, dimensoes };
     variaveisNome.insert(nomeMem);
     
-    if (!funcaoAtual.empty()) func_vars[nome] = { tipo, nomeMem, "var" };
+    if (!funcaoAtual.empty()) func_vars[nome] = { tipo, nomeMem, "var", {}, dimensoes };
 }
 
 void adicionarFuncao(string nome, string tipoRetorno, vector<string> tiposParams) {
@@ -918,8 +1173,8 @@ void adicionarParametro(string nome, string tipo) {
     }
     
     string nomeMem = "v" + to_string(var_qnt++);
-    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var" };
-    tabelaGeracao[nome] = { tipo, nomeMem, "var" };
+    pilhaDeSimbolos.top()[nome] = { tipo, nomeMem, "var", {}, {} }; 
+    tabelaGeracao[nome] = { tipo, nomeMem, "var", {}, {} };     
     variaveisNome.insert(nomeMem);
 }
 
@@ -936,7 +1191,6 @@ tab buscarSimbolo(string nome) {
         tempStack.pop(); 
     }
     
-  
     yyerror("Erro Semantico: Variavel '" + nome + "' nao foi declarada.");
     return {"error", "error", "error"}; 
 }
