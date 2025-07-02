@@ -121,3 +121,100 @@ inteiro principal() {
 
     escrever("\nFim do programa.\n");
 }
+
+10# Exemplo função soma
+inteiro soma(inteiro a, inteiro b) {
+    retornar a + b;
+}
+
+inteiro principal() {
+
+    inteiro resultado;
+
+    resultado = soma(10, 5);
+
+    escrever(resultado); 
+    escrever(soma(100, -20)); 
+
+    retornar 0;
+}
+
+11# Função fibonacci
+inteiro fibonacci(inteiro n) {
+    se (n == 0) {
+        retornar 0;
+    }
+    
+    se (n == 1) {
+        retornar 1;
+    }
+    retornar fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+inteiro principal() {
+    inteiro termo;
+    inteiro resultado;
+    termo = 10; 
+    resultado = fibonacci(termo);
+    escrever(resultado);
+    retornar 0;
+}
+
+12# Operadores compostos
+inteiro principal() {
+    inteiro x;
+    x = 10;
+    x -= 5;   
+    escrever(x);
+
+    flutuante y;
+    y = 4.0;
+    y /= 2.0; 
+    escrever(y);
+
+    inteiro w;
+    w = 10;
+    w += 5;   
+    escrever(w);
+
+    flutuante z;
+    z = 2.5;
+    z *= 2.0; 
+    escrever(z);
+
+    retornar 0;
+}
+
+13# Operador unário
+inteiro principal() {
+    inteiro x;
+    inteiro a;
+    inteiro b;
+    x = 5;
+
+    a = x++; 
+    escrever(a); 
+    escrever(x); 
+
+    x = 10;
+    b = ++x; 
+    escrever(b); 
+    escrever(x); 
+
+    retornar 0;
+}
+
+14# Matriz
+inteiro principal() {
+    inteiro matriz[2][2];
+    matriz[1][1] = 99;
+    escrever(matriz[1][1]);
+}
+
+15# Vetor
+inteiro principal() {
+    inteiro notas[4];
+    notas[1] = 10;
+    escrever(notas[1]);
+    retornar 0;
+}
