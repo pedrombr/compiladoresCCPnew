@@ -17,6 +17,7 @@ struct atributos {
     string tipoExp;
     vector<atributos> listaArgs;
     vector<int> listaDimensoes;
+    vector<string> listaNomes;
 };
 
 struct tab {
@@ -62,6 +63,7 @@ string gerarotulo();
 %}
 
 %token TK_NUM
+%token TK_ENUM
 %token TK_MAIN TK_ID
 %token TK_FIM TK_ERROR
 %token TK_TIPO_CHAR TK_TIPO_BOOLEAN TK_TIPO_INT TK_TIPO_FLOAT
@@ -85,7 +87,7 @@ string gerarotulo();
 
 %%
 
-    S : LISTA_FUNCOES {
+    S : DECLARACOES_GLOBAIS {
         
         if (funcoesGeradas.find("principal") == funcoesGeradas.end()) {
             yyerror("Erro Semantico: Funcao 'principal' nao definida.");
@@ -139,9 +141,41 @@ string gerarotulo();
         cout << codigo << endl;
     };
 
-    LISTA_FUNCOES
+    DECLARACOES_GLOBAIS
+    : DEFINICAO_FUNCAO DECLARACOES_GLOBAIS
+    | DEFINICAO_ENUM DECLARACOES_GLOBAIS // <-- ADICIONE ESTA LINHA
+    |
+    ;
+
+    /*LISTA_FUNCOES
         : DEFINICAO_FUNCAO LISTA_FUNCOES
         | 
+        ;*/
+    DEFINICAO_ENUM
+    : TK_ENUM TK_ID '{' LISTA_MEMBROS_ENUM '}' ';' {
+        // Esta é a ação semântica principal!
+        // Vamos popular a tabela de símbolos aqui.
+        int contador = 0;
+        for (const string& nome_membro : $4.listaNomes) {
+            // Adiciona cada membro como uma constante inteira global
+            if (pilhaDeSimbolos.top().count(nome_membro)) {
+                yyerror("Erro Semantico: Simbolo '" + nome_membro + "' ja foi declarado neste escopo.");
+            }
+            // Adicionamos na tabela do topo (global)
+            pilhaDeSimbolos.top()[nome_membro] = { "int", to_string(contador), "constante" };
+            contador++;
+        }
+        $$.traducao = ""; // A definição de um enum não gera código C diretamente
+    }
+    ;
+    LISTA_MEMBROS_ENUM
+        : TK_ID {
+            $$.listaNomes.push_back($1.label);
+        }
+        | LISTA_MEMBROS_ENUM ',' TK_ID {
+            $$.listaNomes = $1.listaNomes;
+            $$.listaNomes.push_back($3.label);
+        }
         ;
 
     DEFINICAO_FUNCAO
@@ -995,15 +1029,24 @@ string gerarotulo();
         }
         | TK_ID {
             tab infoVar = buscarSimbolo($1.label);
-            if (infoVar.tipo == "string") {
+    
+            if (infoVar.categoria == "constante") {
+            
                 $$.label = infoVar.elemento; 
-                $$.traducao = "";              
-                $$.tipoExp = "string";
+                $$.traducao = ""; 
+                $$.tipoExp = infoVar.tipo; 
             } else {
-                string nomeMem = infoVar.elemento;
-                $$.label = gentempcode(infoVar.tipo);
-                $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
-                $$.tipoExp = infoVar.tipo;
+               
+                if (infoVar.tipo == "string") {
+                    $$.label = infoVar.elemento;
+                    $$.traducao = "";
+                    $$.tipoExp = "string";
+                } else {
+                    string nomeMem = infoVar.elemento;
+                    $$.label = gentempcode(infoVar.tipo);
+                    $$.traducao = "\t" + $$.label + " = " + nomeMem + ";\n";
+                    $$.tipoExp = infoVar.tipo;
+                }
             }
         }
         | '(' TIPO ')' E {
